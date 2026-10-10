@@ -1,0 +1,80 @@
+/* Document content styles. Shared by the editor, HTML export and the print/PDF window. */
+.doc {
+  font-family: var(--doc-font, 'Aptos', 'Segoe UI', Calibri, Carlito, 'Helvetica Neue', Arial, sans-serif);
+  font-size: var(--doc-size, 12pt);
+  color: var(--doc-color, #000);
+  line-height: var(--doc-line, 1.08);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  tab-size: 36pt;
+  -moz-tab-size: 36pt;
+  outline: none;
+  font-kerning: normal;
+}
+.doc p,
+.doc h1, .doc h2, .doc h3, .doc h4, .doc h5, .doc h6 {
+  margin: 0;
+  padding-top: var(--doc-space-before, 0);
+  padding-bottom: var(--doc-space-after, 8pt);
+  min-height: 1em;
+}
+.doc h1, .doc h2, .doc h3, .doc h4, .doc h5, .doc h6 { font-weight: 400; }
+.doc ul, .doc ol { margin: 0; padding-left: 36pt; }
+.doc ul { list-style-type: disc; }
+.doc ul ul { list-style-type: circle; }
+.doc ul ul ul { list-style-type: square; }
+.doc li > p { padding-bottom: var(--doc-space-after, 8pt); }
+.doc li::marker { font-variant-numeric: normal; }
+.doc a { color: #0563c1; text-decoration: underline; cursor: text; }
+.doc strong { font-weight: 700; }
+.doc sub, .doc sup { line-height: 0; }
+.doc hr { border: 0; border-top: 1px solid #999; margin: 8pt 0; }
+.doc blockquote { margin: 0 0 0 18pt; padding-left: 10pt; border-left: 3px solid #c8c8d0; }
+.doc img { max-width: 100%; vertical-align: baseline; }
+.doc img.ProseMirror-selectednode { outline: 2px solid var(--accent, #6f5ff0); }
+
+/* tables */
+.doc .tableWrapper { margin: 0; padding: 0; overflow: visible; }
+.doc table { border-collapse: collapse; table-layout: fixed; margin: 0; width: 100%; overflow: hidden; }
+.doc td, .doc th { padding: 0 5.4pt; vertical-align: top; position: relative; min-width: 1em; box-sizing: border-box; }
+.doc td > p, .doc th > p { padding-bottom: 0; }
+.doc th { font-weight: 700; text-align: left; }
+.doc .tbl-bordered td, .doc .tbl-bordered th, .doc table[data-bordered='true'] td, .doc table[data-bordered='true'] th { border: 1px solid #000; }
+.doc table[data-bordered='false'] td, .doc table[data-bordered='false'] th { border: 0; }
+.doc .tbl-borderless td, .doc .tbl-borderless th { border: 0; }
+.doc .tbl-center table { margin-left: auto; margin-right: auto; }
+.doc .tbl-right table { margin-left: auto; }
+.doc .selectedCell::after { content: ''; position: absolute; inset: 0; background: rgba(var(--accent-rgb, 111, 95, 240), 0.22); pointer-events: none; z-index: 2; }
+.doc .column-resize-handle { position: absolute; right: -2px; top: 0; bottom: -2px; width: 4px; background: var(--accent, #6f5ff0); pointer-events: none; z-index: 3; }
+.doc.resize-cursor { cursor: col-resize; }
+
+.page-break {
+  display: block;
+  position: relative;
+  height: 16px;
+  margin: 0;
+  border: 0;
+  background: none;
+  text-align: center;
+  user-select: none;
+  white-space: normal;
+}
+.page-break::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed #9a9aa6; }
+.page-break::after {
+  content: 'Page Break';
+  position: relative;
+  background: var(--page-bg, #fff);
+  color: #8a8a96;
+  font: 10px/16px 'Segoe UI', sans-serif;
+  padding: 0 8px;
+}
+.page-break.ProseMirror-selectednode::after { color: var(--accent, #6f5ff0); }
+
+.find-match { background: #ffe58f; color: #000; border-radius: 2px; }
+.find-current { background: #ff9f43; }
+
+/* print / PDF rendering has its own .page-break rules (see core/print.ts) */
+@media print {
+  .doc .page-break::before, .doc .page-break::after { display: none; }
+}

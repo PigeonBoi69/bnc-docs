@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b7cf6"/>
+      <stop offset="1" stop-color="#4a3fd1"/>
+    </linearGradient>
+    <linearGradient id="pageL" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dcd9fb"/>
+    </linearGradient>
+    <linearGradient id="pageR" x1="1" y1="0" x2="0" y2="0">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#dcd9fb"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- cover -->
+  <path d="M96 150c0-10 8-18 18-18h86c32 0 56 12 56 12v250s-24-14-56-14h-86c-10 0-18-8-18-18z" fill="#2f2796" opacity=".55"/>
+  <path d="M416 150c0-10-8-18-18-18h-86c-32 0-56 12-56 12v250s24-14 56-14h86c10 0 18-8 18-18z" fill="#2f2796" opacity=".55"/>
+  <!-- pages -->
+  <path d="M112 138c0-8 6-14 14-14h72c30 0 50 12 58 22v236c-14-10-34-18-58-18h-72c-8 0-14-6-14-14z" fill="url(#pageL)"/>
+  <path d="M400 138c0-8-6-14-14-14h-72c-30 0-50 12-58 22v236c14-10 34-18 58-18h72c8 0 14-6 14-14z" fill="url(#pageR)"/>
+  <!-- text lines -->
+  <g stroke="#6c5fe0" stroke-width="12" stroke-linecap="round" opacity=".75">
+    <path d="M148 190h74M148 232h74M148 274h74M148 316h50"/>
+    <path d="M290 190h74M290 232h74M290 274h74M290 316h50"/>
+  </g>
+  <!-- bookmark ribbon -->
+  <path d="M322 124h40v92l-20-14-20 14z" fill="#ffcf5c"/>
+</svg>

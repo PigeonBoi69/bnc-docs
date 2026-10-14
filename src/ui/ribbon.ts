@@ -1,3 +1,5 @@
+// The ribbon. Every tab is described once as groups of controls; two renderers turn that description into
+// either the Classic ribbon (labelled groups, large buttons) or the Simplified one (a single compact row).
 import type { App } from '../app';
 import { currentFont, currentFontSize, currentStyleId } from '../commands';
 import { MARGIN_PRESETS, PAGE_SIZES, STYLE_BY_ID } from '../core/model';
@@ -7,73 +9,76 @@ import type { IconName } from './icons';
 import { appColorItems } from './styles';
 import { FONT_SIZES, charPicker, colorPicker, combo, loadFonts, tableGridPicker, HIGHLIGHT_COLORS } from './pickers';
 
-type TabId = 'home' | 'insert' | 'layout' | 'references' | 'review' | 'view' | 'help' | 'table';
-
-const TABS: { id: TabId | 'file'; label: string }[] = [
-  { id: 'file', label: 'File' },
-  { id: 'home', label: 'Home' },
-  { id: 'insert', label: 'Insert' },
-  { id: 'layout', label: 'Layout' },
-  { id: 'references', label: 'References' },
-  { id: 'review', label: 'Review' },
-  { id: 'view', label: 'View' },
-  { id: 'help', label: 'Help' },
-];
-
-let active: TabId = 'home';
-
 // ---------------------------------------------------------------------------
-// Control builders
+// Control descriptions
 // ---------------------------------------------------------------------------
-interface BtnOpts {
-  icon?: IconName;
+interface BtnItem {
+  t: 'btn';
+  icon: IconName;
   label?: string;
   title: string;
   cmd?: string;
-  arg?: any;
-  onClick?: (el: HTMLElement) => void;
-  active?: () => boolean;
-  caret?: boolean;
+  arg?: unknown;
+  run?: (app: App, el: HTMLElement) => void;
+  size?: 'lg' | 'sm';
+  menu?: (app: App) => MenuItem[];
+  pop?: (app: App, anchor: HTMLElement) => void;
+  split?: boolean;
+  /** keep the text label in the Simplified ribbon too (for buttons whose icon alone is ambiguous) */
+  always?: boolean;
+  active?: (app: App) => boolean;
+}
+interface ColorItem {
+  t: 'color';
+  icon: IconName;
+  title: string;
+  label?: string;
+  cmd: string;
+  none: string;
+  initial: string;
+  palette?: string[][];
+  size?: 'lg' | 'sm';
+}
+interface CustomItem {
+  t: 'custom';
+  build: (app: App) => HTMLElement;
+}
+interface StackItem {
+  t: 'stack';
+  items: Item[];
+}
+interface RowsItem {
+  t: 'rows';
+  rows: Item[][];
+}
+type Item = BtnItem | ColorItem | CustomItem | StackItem | RowsItem;
+interface Group {
+  name: string;
+  items: Item[];
 }
 
-function btn(app: App, o: BtnOpts): HTMLElement {
-  const el = h('button', { class: 'rb', title: macify(o.title), attrs: { 'aria-label': o.title } }, o.icon ? iconEl(o.icon, 18) : null, o.label ? h('span', { text: o.label }) : null, o.caret ? h('span', { class: 'caret' }, iconEl('chevron', 12)) : null);
-  el.addEventListener('mousedown', (e) => e.preventDefault()); // keep editor focus/selection
-  el.addEventListener('click', () => (o.onClick ? o.onClick(el) : o.cmd && void app.run(o.cmd, o.arg)));
-  if (o.active) {
-    const upd = () => el.classList.toggle('active', !!o.active!());
-    app.onRefresh(upd);
-    upd();
-  }
-  return el;
+type TabId = 'home' | 'insert' | 'layout' | 'references' | 'review' | 'view' | 'help' | 'table';
+interface TabDef {
+  id: TabId;
+  label: string;
+  contextual?: boolean;
+  groups: (app: App) => Group[];
 }
 
-function menuBtn(app: App, o: Omit<BtnOpts, 'onClick' | 'cmd'> & { items: () => MenuItem[] }): HTMLElement {
-  return btn(app, { ...o, caret: true, onClick: (el) => showMenu(el, o.items) });
-}
+let active: TabId = 'home';
+const overflowData = new WeakMap<HTMLElement, Item>();
 
-function sep(): HTMLElement {
-  return h('div', { class: 'rsep' });
-}
+const lg = (icon: IconName, label: string, cmd: string | undefined, o: Partial<BtnItem> = {}): BtnItem => ({ t: 'btn', icon, label, title: o.title ?? label, cmd, size: 'lg', ...o });
+const sm = (icon: IconName, title: string, cmd: string | undefined, o: Partial<BtnItem> = {}): BtnItem => ({ t: 'btn', icon, title, cmd, size: 'sm', ...o });
+const smL = (icon: IconName, label: string, cmd: string | undefined, o: Partial<BtnItem> = {}): BtnItem => ({ t: 'btn', icon, label, title: o.title ?? label, cmd, size: 'sm', ...o });
+const color = (icon: IconName, title: string, cmd: string, initial: string, none: string, o: Partial<ColorItem> = {}): ColorItem => ({ t: 'color', icon, title, cmd, initial, none, size: 'sm', ...o });
+const custom = (build: (app: App) => HTMLElement): CustomItem => ({ t: 'custom', build });
+const stack = (...items: Item[]): StackItem => ({ t: 'stack', items });
+const rows = (...r: Item[][]): RowsItem => ({ t: 'rows', rows: r });
 
-function colorBtn(app: App, o: { icon: IconName; title: string; cmd: string; initial: string; none: string; palette?: string[][]; apply?: (c: string | null) => void }): HTMLElement {
-  let last = o.initial;
-  const swatch = h('span', { class: 'swatch', style: { background: last } });
-  const main = h('button', { class: 'rb grp-l', title: o.title, attrs: { 'aria-label': o.title } }, iconEl(o.icon, 18), swatch);
-  const caret = h('button', { class: 'rb split-caret', title: `${o.title} options`, attrs: { 'aria-label': `${o.title} options` } }, iconEl('chevron', 12));
-  for (const b of [main, caret]) b.addEventListener('mousedown', (e) => e.preventDefault());
-  const apply = (c: string | null) => {
-    if (c) {
-      last = c;
-      swatch.style.background = c;
-    }
-    o.apply ? o.apply(c) : void app.run(o.cmd, c);
-  };
-  main.addEventListener('click', () => apply(last));
-  caret.addEventListener('click', () => colorPicker(caret, { title: o.title, noneLabel: o.none, onPick: apply, palette: o.palette }));
-  return h('span', { style: { display: 'inline-flex', flex: 'none' } }, main, caret);
-}
-
+// ---------------------------------------------------------------------------
+// Small building blocks
+// ---------------------------------------------------------------------------
 function spin(app: App, o: { label: string; icon?: IconName; title: string; unit: string; step: number; get: () => number; set: (v: number) => void }): HTMLElement {
   const input = h('input', { attrs: { type: 'number', step: String(o.step), min: '0', 'aria-label': o.title }, title: o.title });
   const upd = () => {
@@ -95,130 +100,22 @@ function spin(app: App, o: { label: string; icon?: IconName; title: string; unit
   return h('span', { class: 'spin' }, h('label', null, o.icon ? iconEl(o.icon, 16) : null, o.label), input, h('span', { text: o.unit }));
 }
 
+const R = (app: App, id: string, arg?: unknown) => () => void app.run(id, arg);
+
 // ---------------------------------------------------------------------------
-// Tabs
+// Tabs, described as groups
 // ---------------------------------------------------------------------------
-function homeTab(app: App): HTMLElement[] {
-  const ed = app.editor;
-  const fontCombo = combo({
-    width: 112,
-    title: 'Font',
-    getValue: () => currentFont(app),
-    getItems: loadFonts,
-    renderItem: (f) => h('span', { text: f, style: { fontFamily: `'${f}'` } }),
-    onCommit: (f) => {
-      void app.run('font-family', f);
-      ed.commands.focus();
-    },
-  });
-  const sizeCombo = combo({
-    width: 34,
-    title: 'Font size',
-    numeric: true,
-    getValue: () => String(currentFontSize(app)),
-    getItems: () => FONT_SIZES.map(String),
-    onCommit: (s) => {
-      void app.run('font-size', s);
-      ed.commands.focus();
-    },
-  });
-  app.onRefresh(fontCombo.update);
-  app.onRefresh(sizeCombo.update);
-
-  const align = (id: string, icon: IconName, a: string) => btn(app, { icon, title: `Align ${a}`, cmd: id, active: () => ed.isActive({ textAlign: a }) || (a === 'left' && !['center', 'right', 'justify'].some((x) => ed.isActive({ textAlign: x }))) });
-
-  const lineSpacing = () => {
-    const cur = ed.getAttributes(ed.isActive('heading') ? 'heading' : 'paragraph').lineHeight ?? app.meta.defaults.lineHeight;
-    return [1, 1.15, 1.5, 2, 2.5, 3].map<MenuItem>((v) => ({ label: String(v), checked: Number(cur) === v, run: () => void app.run('line-spacing', v) }));
-  };
-
-  return [
-    btn(app, { icon: 'undo', title: 'Undo (Ctrl+Z)', cmd: 'undo' }),
-    btn(app, { icon: 'redo', title: 'Redo (Ctrl+Y)', cmd: 'redo' }),
-    sep(),
-    menuBtn(app, {
-      icon: 'paste',
-      title: 'Paste',
-      items: () => [
-        { label: 'Paste', icon: 'paste', run: () => void app.run('paste') },
-        { label: 'Cut', icon: 'cut', run: () => void app.run('cut') },
-        { label: 'Copy', icon: 'copy', run: () => void app.run('copy') },
-      ],
-    }),
-    btn(app, { icon: 'formatPainter', title: 'Format Painter', cmd: 'format-painter' }),
-    sep(),
-    fontCombo.el,
-    sizeCombo.el,
-    btn(app, { icon: 'plus', title: 'Increase font size', cmd: 'font-grow' }),
-    btn(app, { icon: 'minus', title: 'Decrease font size', cmd: 'font-shrink' }),
-    btn(app, { icon: 'bold', title: 'Bold (Ctrl+B)', cmd: 'bold', active: () => ed.isActive('bold') }),
-    btn(app, { icon: 'italic', title: 'Italic (Ctrl+I)', cmd: 'italic', active: () => ed.isActive('italic') }),
-    btn(app, { icon: 'underline', title: 'Underline (Ctrl+U)', cmd: 'underline', active: () => ed.isActive('underline') }),
-    colorBtn(app, { icon: 'highlight', title: 'Text highlight color', cmd: 'highlight', initial: '#ffff00', none: 'No color', palette: [HIGHLIGHT_COLORS.slice(0, 10), HIGHLIGHT_COLORS.slice(10).concat(['#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff'])].map((r) => r.slice(0, 10)).slice(0, 2) }),
-    colorBtn(app, { icon: 'fontColor', title: 'Font color', cmd: 'text-color', initial: '#e53935', none: 'Automatic' }),
-    btn(app, { icon: 'clearFormat', title: 'Clear all formatting', cmd: 'clear-format' }),
-    menuBtn(app, {
-      icon: 'more',
-      title: 'More font options',
-      items: () => [
-        { label: 'Strikethrough', icon: 'strike', checked: ed.isActive('strike'), run: () => void app.run('strike') },
-        { label: 'Subscript', icon: 'subscript', checked: ed.isActive('subscript'), run: () => void app.run('subscript') },
-        { label: 'Superscript', icon: 'superscript', checked: ed.isActive('superscript'), run: () => void app.run('superscript') },
-        { separator: true },
-        { label: 'UPPERCASE', run: () => void app.run('change-case', 'upper') },
-        { label: 'lowercase', run: () => void app.run('change-case', 'lower') },
-        { label: 'Capitalize Each Word', run: () => void app.run('change-case', 'title') },
-      ],
-    }),
-    sep(),
-    btn(app, { icon: 'bullets', title: 'Bullets (Ctrl+Shift+8)', cmd: 'bullets', active: () => ed.isActive('bulletList') }),
-    menuBtn(app, {
-      icon: 'numbering',
-      title: 'Numbering (Ctrl+Shift+7)',
-      active: () => ed.isActive('orderedList'),
-      items: () =>
-        ([['1', '1. 2. 3.'], ['a', 'a. b. c.'], ['A', 'A. B. C.'], ['i', 'i. ii. iii.'], ['I', 'I. II. III.']] as const).map<MenuItem>(([t, label]) => ({
-          label,
-          checked: ed.isActive('orderedList') && ed.getAttributes('orderedList').type === t,
-          run: () => void app.run('numbering-format', t),
-        })),
-    }),
-    btn(app, { icon: 'outdent', title: 'Decrease indent', cmd: 'outdent' }),
-    btn(app, { icon: 'indent', title: 'Increase indent', cmd: 'indent' }),
-    align('align-left', 'alignLeft', 'left'),
-    align('align-center', 'alignCenter', 'center'),
-    align('align-right', 'alignRight', 'right'),
-    align('align-justify', 'alignJustify', 'justify'),
-    menuBtn(app, { icon: 'lineSpacing', title: 'Line spacing', items: lineSpacing }),
-    colorBtn(app, { icon: 'shading', title: 'Shading', cmd: 'shading', initial: '#ffe58f', none: 'No color' }),
-    sep(),
-    stylesGallery(app),
-    sep(),
-    menuBtn(app, {
-      icon: 'search',
-      label: 'Find',
-      title: 'Find (Ctrl+F)',
-      items: () => [
-        { label: 'Find', icon: 'search', shortcut: 'Ctrl+F', run: () => void app.run('find') },
-        { label: 'Replace', icon: 'replace', shortcut: 'Ctrl+H', run: () => void app.run('replace') },
-      ],
-    }),
-    btn(app, { icon: 'mic', label: 'Dictate', title: 'Dictate', cmd: 'dictate', caret: true }),
-    btn(app, { icon: 'editor', label: 'Editor', title: 'Editor', cmd: 'editor-pane' }),
-  ];
-}
-
 function stylesGallery(app: App): HTMLElement {
   const tiles: [string, string, string][] = [
     ['Normal', 'Normal', ''],
     ['NoSpacing', 'No Spacing', ''],
     ['Heading1', 'Heading 1', 'font-size:17px;color:var(--accent-text)'],
   ];
-  const wrap = h('span', { style: { display: 'inline-flex', gap: '4px', flex: 'none' } });
+  const wrap = h('span', { class: 'gallery-wrap' });
   const els: [string, HTMLElement][] = [];
   for (const [id, label, style] of tiles) {
     const t = h('button', { class: 'style-tile', title: label, style, text: label });
-    t.addEventListener('mousedown', (e) => e.preventDefault());
+    keepFocus(t);
     t.addEventListener('click', () => void app.run('style', id));
     els.push([id, t]);
     wrap.append(t);
@@ -227,226 +124,605 @@ function stylesGallery(app: App): HTMLElement {
     const cur = currentStyleId(app);
     for (const [id, el] of els) el.classList.toggle('active', id === cur);
   });
-  const more = btn(app, {
-    icon: 'chevron',
-    title: 'More styles',
-    onClick: (el) => {
-      let close = () => {};
-      const list = h('div', { class: 'list-pop', style: { minWidth: '240px' } });
-      for (const s of Object.values(STYLE_BY_ID)) {
-        const row = h('div', { class: `list-item${currentStyleId(app) === s.id ? ' sel' : ''}`, style: { padding: '8px 12px' } }, h('span', {
-          text: s.name,
-          style: {
-            fontSize: `${Math.min(26, Math.max(12, (s.size ?? 12) * 1.15))}px`,
-            fontStyle: s.italic ? 'italic' : 'normal',
-            color: s.level || s.color ? 'var(--accent)' : 'inherit',
-            fontWeight: s.level === 1 || s.id === 'Title' ? '600' : '400',
-          },
-        }));
-        row.addEventListener('click', () => {
-          close();
-          void app.run('style', s.id);
-        });
-        list.append(row);
-      }
-      close = popover(el, list);
-    },
-  });
-  wrap.append(more);
+  wrap.append(
+    btnEl(
+      app,
+      sm('chevron', 'More styles', undefined, {
+        run: (_a, el) => {
+          let close = () => {};
+          const list = h('div', { class: 'list-pop', style: { minWidth: '240px' } });
+          for (const s of Object.values(STYLE_BY_ID)) {
+            const row = h('div', { class: `list-item${currentStyleId(app) === s.id ? ' sel' : ''}`, style: { padding: '8px 12px' } }, h('span', {
+              text: s.name,
+              style: {
+                fontSize: `${Math.min(26, Math.max(12, (s.size ?? 12) * 1.15))}px`,
+                fontStyle: s.italic ? 'italic' : 'normal',
+                color: s.level || s.color ? 'var(--accent)' : 'inherit',
+                fontWeight: s.level === 1 || s.id === 'Title' ? '600' : '400',
+              },
+            }));
+            row.addEventListener('click', () => {
+              close();
+              void app.run('style', s.id);
+            });
+            list.append(row);
+          }
+          close = popover(el, list);
+        },
+      }),
+      false,
+    ),
+  );
   return wrap;
 }
 
-function insertTab(app: App): HTMLElement[] {
-  return [
-    btn(app, { icon: 'pageBreak', label: 'Page Break', title: 'Page Break (Ctrl+Enter)', cmd: 'insert-page-break' }),
-    sep(),
-    btn(app, { icon: 'table', label: 'Table', title: 'Insert Table', caret: true, onClick: (el) => tableGridPicker(el, (rows, cols) => void app.run('insert-table', { rows, cols }), () => void app.run('insert-table-dialog')) }),
-    btn(app, { icon: 'image', label: 'Picture', title: 'Insert Picture', cmd: 'insert-picture' }),
-    btn(app, { icon: 'editor', label: 'Drawing', title: 'Drawing', cmd: 'insert-drawing' }),
-    btn(app, { icon: 'link', label: 'Link', title: 'Insert Link (Ctrl+K)', cmd: 'insert-link' }),
-    sep(),
-    btn(app, { icon: 'toc', label: 'Table of Contents', title: 'Table of Contents', cmd: 'insert-toc' }),
-    btn(app, { icon: 'bookmark', label: 'Bookmarks', title: 'Bookmarks', cmd: 'insert-bookmark' }),
-    btn(app, { icon: 'newComment', label: 'New Comment', title: 'New Comment', cmd: 'insert-comment' }),
-    sep(),
-    btn(app, { icon: 'header', label: 'Header & Footer', title: 'Header & Footer', cmd: 'header-footer' }),
-    menuBtn(app, {
-      icon: 'hash',
-      label: 'Page Numbers',
-      title: 'Page Numbers',
-      items: () => [
-        { label: 'Bottom of page (footer)', run: () => void app.run('insert-page-number', 'footer') },
-        { label: 'Top of page (header)', run: () => void app.run('insert-page-number', 'header') },
-      ],
-    }),
-    btn(app, { icon: 'equation', label: 'Equation', title: 'Equation', cmd: 'insert-equation' }),
-    btn(app, { icon: 'symbol', label: 'Symbol', title: 'Symbol', caret: true, onClick: (el) => charPicker(el, 'symbol', (c) => void app.run('insert-char', c)) }),
-    btn(app, { icon: 'emoji', label: 'Emoji', title: 'Emoji', caret: true, onClick: (el) => charPicker(el, 'emoji', (c) => void app.run('insert-char', c)) }),
-    btn(app, { icon: 'rule', label: 'Line', title: 'Horizontal line', cmd: 'insert-hr' }),
-    btn(app, { icon: 'history', label: 'Date', title: 'Date and time', cmd: 'insert-date' }),
-  ];
-}
-
-function layoutTab(app: App): HTMLElement[] {
+function homeGroups(app: App): Group[] {
   const ed = app.editor;
-  const para = () => ed.getAttributes(ed.isActive('heading') ? 'heading' : 'paragraph');
+  const align = (cmd: string, icon: IconName, a: string) =>
+    sm(icon, `Align ${a}`, cmd, { active: (ap) => ap.editor.isActive({ textAlign: a }) || (a === 'left' && !['center', 'right', 'justify'].some((x) => ap.editor.isActive({ textAlign: x }))) });
+
+  const fontCombo = custom((ap) => {
+    const c = combo({
+      width: 112,
+      title: 'Font',
+      getValue: () => currentFont(ap),
+      getItems: loadFonts,
+      renderItem: (f) => h('span', { text: f, style: { fontFamily: `'${f}'` } }),
+      onCommit: (f) => {
+        void ap.run('font-family', f);
+        ap.editor.commands.focus();
+      },
+    });
+    ap.onRefresh(c.update);
+    return c.el;
+  });
+  const sizeCombo = custom((ap) => {
+    const c = combo({
+      width: 34,
+      title: 'Font size',
+      numeric: true,
+      getValue: () => String(currentFontSize(ap)),
+      getItems: () => FONT_SIZES.map(String),
+      onCommit: (s) => {
+        void ap.run('font-size', s);
+        ap.editor.commands.focus();
+      },
+    });
+    ap.onRefresh(c.update);
+    return c.el;
+  });
+
+  const lineSpacing = (ap: App): MenuItem[] => {
+    const cur = ap.editor.getAttributes(ap.editor.isActive('heading') ? 'heading' : 'paragraph').lineHeight ?? ap.meta.defaults.lineHeight;
+    return [1, 1.15, 1.5, 2, 2.5, 3].map<MenuItem>((v) => ({ label: String(v), checked: Number(cur) === v, run: R(ap, 'line-spacing', v) }));
+  };
+  const highlightPalette = [HIGHLIGHT_COLORS.slice(0, 10), HIGHLIGHT_COLORS.slice(10).concat(['#ffffff', '#ffffff', '#ffffff', '#ffffff', '#ffffff']).slice(0, 10)];
+  void ed;
+
   return [
-    menuBtn(app, {
-      icon: 'margins',
-      label: 'Margins',
-      title: 'Margins',
-      items: () => [
-        ...Object.entries(MARGIN_PRESETS).map<MenuItem>(([k, m]) => ({ label: `${m.label}  (${(m.t / 72).toFixed(2)}" / ${(m.l / 72).toFixed(2)}")`, run: () => void app.run('page-margins', k) })),
-        { separator: true },
-        { label: 'Custom margins…', run: () => void app.run('page-setup') },
+    { name: 'Undo', items: [stack(smL('undo', 'Undo', 'undo', { title: 'Undo (Ctrl+Z)' }), smL('redo', 'Redo', 'redo', { title: 'Redo (Ctrl+Y)' }))] },
+    {
+      name: 'Clipboard',
+      items: [
+        lg('paste', 'Paste', 'paste', {
+          split: true,
+          menu: (ap) => [
+            { label: 'Paste', icon: 'paste', run: R(ap, 'paste') },
+            { label: 'Cut', icon: 'cut', run: R(ap, 'cut') },
+            { label: 'Copy', icon: 'copy', run: R(ap, 'copy') },
+          ],
+        }),
+        stack(smL('cut', 'Cut', 'cut'), smL('copy', 'Copy', 'copy'), smL('formatPainter', 'Format Painter', 'format-painter')),
       ],
-    }),
-    menuBtn(app, {
-      icon: 'orientation',
-      label: 'Orientation',
-      title: 'Orientation',
-      items: () => [
-        { label: 'Portrait', checked: app.meta.page.orientation === 'portrait', run: () => void app.run('page-orientation', 'portrait') },
-        { label: 'Landscape', checked: app.meta.page.orientation === 'landscape', run: () => void app.run('page-orientation', 'landscape') },
+    },
+    {
+      name: 'Font',
+      items: [
+        rows(
+          [
+            fontCombo,
+            sizeCombo,
+            sm('plus', 'Increase font size', 'font-grow'),
+            sm('minus', 'Decrease font size', 'font-shrink'),
+            sm('clearFormat', 'Clear all formatting', 'clear-format'),
+          ],
+          [
+            sm('bold', 'Bold (Ctrl+B)', 'bold', { active: (ap) => ap.editor.isActive('bold') }),
+            sm('italic', 'Italic (Ctrl+I)', 'italic', { active: (ap) => ap.editor.isActive('italic') }),
+            sm('underline', 'Underline (Ctrl+U)', 'underline', { active: (ap) => ap.editor.isActive('underline') }),
+            sm('more', 'More font options', undefined, {
+              menu: (ap) => [
+                { label: 'Strikethrough', icon: 'strike', checked: ap.editor.isActive('strike'), run: R(ap, 'strike') },
+                { label: 'Subscript', icon: 'subscript', checked: ap.editor.isActive('subscript'), run: R(ap, 'subscript') },
+                { label: 'Superscript', icon: 'superscript', checked: ap.editor.isActive('superscript'), run: R(ap, 'superscript') },
+                { separator: true },
+                { label: 'UPPERCASE', run: R(ap, 'change-case', 'upper') },
+                { label: 'lowercase', run: R(ap, 'change-case', 'lower') },
+                { label: 'Capitalize Each Word', run: R(ap, 'change-case', 'title') },
+              ],
+            }),
+            color('highlight', 'Text highlight color', 'highlight', '#ffff00', 'No color', { palette: highlightPalette }),
+            color('fontColor', 'Font color', 'text-color', '#e53935', 'Automatic'),
+          ],
+        ),
       ],
-    }),
-    menuBtn(app, {
-      icon: 'size',
-      label: 'Size',
-      title: 'Paper size',
-      items: () => [
-        ...Object.entries(PAGE_SIZES).map<MenuItem>(([k, s]) => ({ label: s.label, checked: Math.abs(Math.min(app.meta.page.width, app.meta.page.height) - s.w) < 1 && Math.abs(Math.max(app.meta.page.width, app.meta.page.height) - s.h) < 1, run: () => void app.run('page-size', k) })),
-        { separator: true },
-        { label: 'More paper sizes…', run: () => void app.run('page-setup') },
+    },
+    {
+      name: 'Paragraph',
+      items: [
+        rows(
+          [
+            sm('bullets', 'Bullets (Ctrl+Shift+8)', 'bullets', { active: (ap) => ap.editor.isActive('bulletList') }),
+            sm('numbering', 'Numbering (Ctrl+Shift+7)', undefined, {
+              active: (ap) => ap.editor.isActive('orderedList'),
+              menu: (ap) =>
+                ([['1', '1. 2. 3.'], ['a', 'a. b. c.'], ['A', 'A. B. C.'], ['i', 'i. ii. iii.'], ['I', 'I. II. III.']] as const).map<MenuItem>(([ty, label]) => ({
+                  label,
+                  checked: ap.editor.isActive('orderedList') && ap.editor.getAttributes('orderedList').type === ty,
+                  run: R(ap, 'numbering-format', ty),
+                })),
+            }),
+            sm('outdent', 'Decrease indent', 'outdent'),
+            sm('indent', 'Increase indent', 'indent'),
+            sm('lineSpacing', 'Line spacing', undefined, { menu: lineSpacing }),
+          ],
+          [
+            align('align-left', 'alignLeft', 'left'),
+            align('align-center', 'alignCenter', 'center'),
+            align('align-right', 'alignRight', 'right'),
+            align('align-justify', 'alignJustify', 'justify'),
+            color('shading', 'Shading', 'shading', '#ffe58f', 'No color'),
+          ],
+        ),
       ],
-    }),
-    btn(app, { icon: 'columns', label: 'Columns', title: 'Columns', cmd: 'columns', caret: true }),
-    menuBtn(app, { icon: 'pageBreak', label: 'Breaks', title: 'Breaks', items: () => [{ label: 'Page break', icon: 'pageBreak', shortcut: 'Ctrl+Enter', run: () => void app.run('insert-page-break') }] }),
-    btn(app, { icon: 'hash', label: 'Line Numbers', title: 'Line numbers', cmd: 'line-numbers', caret: true }),
-    sep(),
-    spin(app, { label: 'Indent Left', icon: 'indent', title: 'Indent left (inches)', unit: '"', step: 0.1, get: () => (para().indentLeft ?? 0) / 72, set: (v) => void app.run('indent-left', v * 72) }),
-    spin(app, { label: 'Indent Right', icon: 'outdent', title: 'Indent right (inches)', unit: '"', step: 0.1, get: () => (para().indentRight ?? 0) / 72, set: (v) => void app.run('indent-right', v * 72) }),
-    sep(),
-    spin(app, { label: 'Spacing Before', icon: 'spacing', title: 'Spacing before (pt)', unit: 'pt', step: 1, get: () => para().spaceBefore ?? app.meta.defaults.spaceBefore, set: (v) => void app.run('space-before', v) }),
-    spin(app, { label: 'Spacing After', icon: 'spacing', title: 'Spacing after (pt)', unit: 'pt', step: 1, get: () => para().spaceAfter ?? app.meta.defaults.spaceAfter, set: (v) => void app.run('space-after', v) }),
-    sep(),
-    btn(app, { icon: 'square', label: 'Page Borders', title: 'Page borders', cmd: 'page-borders', caret: true }),
-    colorBtn(app, { icon: 'palette', title: 'Page Color', cmd: 'page-color', initial: '#ffffff', none: 'No color', apply: (c) => void app.run('page-color', c) }),
-    btn(app, { icon: 'file', label: 'Page Setup', title: 'Page Setup', cmd: 'page-setup' }),
+    },
+    { name: 'Styles', items: [custom(stylesGallery)] },
+    {
+      name: 'Editing',
+      items: [
+        stack(
+          smL('search', 'Find', 'find', { title: 'Find (Ctrl+F)' }),
+          smL('replace', 'Replace', 'replace', { title: 'Replace (Ctrl+H)' }),
+        ),
+        lg('mic', 'Dictate', 'dictate'),
+        lg('editor', 'Editor', 'editor-pane'),
+      ],
+    },
   ];
 }
 
-function referencesTab(app: App): HTMLElement[] {
+function insertGroups(app: App): Group[] {
   return [
-    btn(app, { icon: 'toc', label: 'Table of Contents', title: 'Table of Contents', cmd: 'insert-toc' }),
-    btn(app, { icon: 'bookmarked', label: 'Insert Footnote', title: 'Insert Footnote', cmd: 'footnote' }),
-    btn(app, { icon: 'file', label: 'Insert Endnote', title: 'Insert Endnote', cmd: 'endnote' }),
-    btn(app, { icon: 'quote', label: 'Citations', title: 'Citations', cmd: 'citations', caret: true }),
-  ];
-}
-
-function reviewTab(app: App): HTMLElement[] {
-  return [
-    btn(app, { icon: 'editor', label: 'Editor', title: 'Editor', cmd: 'editor-pane' }),
-    btn(app, { icon: 'spelling', label: 'Spelling & Grammar', title: 'Spelling & Grammar', cmd: 'toggle-spelling', active: () => app.editor.view.dom.getAttribute('spellcheck') === 'true' }),
-    btn(app, { icon: 'hash', label: 'Word Count', title: 'Word Count', cmd: 'word-count' }),
-    btn(app, { icon: 'accessibility', label: 'Check Accessibility', title: 'Check Accessibility', cmd: 'accessibility' }),
-    sep(),
-    btn(app, { icon: 'translate', label: 'Translate', title: 'Translate', cmd: 'translate', caret: true }),
-    sep(),
-    btn(app, { icon: 'newComment', label: 'New Comment', title: 'New Comment', cmd: 'insert-comment' }),
-    sep(),
-    btn(app, { icon: 'history', label: 'Track Changes', title: 'Track Changes', cmd: 'track-changes', caret: true }),
-  ];
-}
-
-function viewTab(app: App): HTMLElement[] {
-  return [
-    btn(app, { icon: 'file', label: 'Separate Pages', title: 'Print layout', active: () => true, onClick: () => {} }),
-    btn(app, { icon: 'reading', label: 'Reading View', title: 'Reading view', cmd: 'toggle-reading', active: () => app.root.classList.contains('reading') }),
-    btn(app, { icon: 'reading', label: 'Immersive Reader', title: 'Immersive Reader', cmd: 'immersive-reader' }),
-    sep(),
-    menuBtn(app, {
-      icon: 'zoomIn',
-      label: 'Zoom',
-      title: 'Zoom',
-      items: () => [
-        ...[50, 75, 90, 100, 125, 150, 200].map<MenuItem>((z) => ({ label: `${z}%`, checked: Math.round(app.zoom * 100) === z, run: () => void app.run('zoom-set', z / 100) })),
-        { separator: true },
-        { label: 'Fit page width', icon: 'fit', run: () => void app.run('zoom-fit') },
+    { name: 'Pages', items: [lg('pageBreak', 'Page Break', 'insert-page-break', { title: 'Page Break (Ctrl+Enter)' })] },
+    {
+      name: 'Tables',
+      items: [lg('table', 'Table', undefined, { title: 'Insert Table', pop: (ap, el) => tableGridPicker(el, (r, c) => void ap.run('insert-table', { rows: r, cols: c }), () => void ap.run('insert-table-dialog')) })],
+    },
+    { name: 'Illustrations', items: [lg('image', 'Picture', 'insert-picture', { title: 'Insert Picture' }), lg('editor', 'Drawing', 'insert-drawing')] },
+    {
+      name: 'Links',
+      items: [lg('link', 'Link', 'insert-link', { title: 'Insert Link (Ctrl+K)' }), lg('bookmark', 'Bookmarks', 'insert-bookmark'), lg('toc', 'Table of Contents', 'insert-toc')],
+    },
+    { name: 'Comments', items: [lg('newComment', 'New Comment', 'insert-comment')] },
+    {
+      name: 'Header & Footer',
+      items: [
+        lg('header', 'Header & Footer', 'header-footer'),
+        lg('hash', 'Page Numbers', undefined, {
+          menu: (ap) => [
+            { label: 'Bottom of page (footer)', run: R(ap, 'insert-page-number', 'footer') },
+            { label: 'Top of page (header)', run: R(ap, 'insert-page-number', 'header') },
+          ],
+        }),
       ],
-    }),
-    btn(app, { icon: 'fit', label: '100%', title: 'Zoom to 100%', cmd: 'zoom-100' }),
-    sep(),
-    btn(app, { icon: 'ruler', label: 'Ruler', title: 'Ruler', cmd: 'toggle-ruler', active: () => app.ruler.classList.contains('on') }),
-    btn(app, { icon: 'nav', label: 'Navigation', title: 'Navigation pane', cmd: 'toggle-nav', active: () => app.navPane.classList.contains('open') }),
-    btn(app, { icon: 'header', label: 'Header & Footer', title: 'Header & Footer', cmd: 'header-footer' }),
-    sep(),
-    btn(app, { icon: app.theme === 'dark' ? 'moon' : 'sun', label: 'Dark Mode', title: 'Dark mode', cmd: 'toggle-dark', active: () => app.theme === 'dark' }),
-    menuBtn(app, { icon: 'palette', label: 'App Color', title: 'App color (plugins)', items: () => appColorItems(app) }),
-    btn(app, { icon: 'sun', label: 'Switch Background', title: 'Switch page background', cmd: 'toggle-dark-paper', active: () => app.darkPaper }),
-  ];
-}
-
-function helpTab(app: App): HTMLElement[] {
-  return [
-    btn(app, { icon: 'keyboard', label: 'Keyboard Shortcuts', title: 'Keyboard shortcuts', cmd: 'shortcuts' }),
-    btn(app, { icon: 'info', label: 'About BNC Docs', title: 'About', cmd: 'about' }),
-    btn(app, { icon: 'cloud', label: 'Nextcloud', title: 'Nextcloud account', cmd: 'cloud-settings' }),
-    btn(app, { icon: 'layers', label: 'Plugins', title: 'Plugins (app colors and icons)', cmd: 'plugins' }),
-  ];
-}
-
-function tableTab(app: App): HTMLElement[] {
-  const ed = app.editor;
-  return [
-    btn(app, { icon: 'plus', label: 'Row Above', title: 'Insert row above', cmd: 'table-add-row-above' }),
-    btn(app, { icon: 'plus', label: 'Row Below', title: 'Insert row below', cmd: 'table-add-row-below' }),
-    btn(app, { icon: 'plus', label: 'Column Left', title: 'Insert column left', cmd: 'table-add-col-left' }),
-    btn(app, { icon: 'plus', label: 'Column Right', title: 'Insert column right', cmd: 'table-add-col-right' }),
-    sep(),
-    btn(app, { icon: 'minus', label: 'Delete Row', title: 'Delete row', cmd: 'table-delete-row' }),
-    btn(app, { icon: 'minus', label: 'Delete Column', title: 'Delete column', cmd: 'table-delete-col' }),
-    btn(app, { icon: 'trash', label: 'Delete Table', title: 'Delete table', cmd: 'table-delete' }),
-    sep(),
-    btn(app, { icon: 'layers', label: 'Merge Cells', title: 'Merge selected cells', cmd: 'table-merge' }),
-    btn(app, { icon: 'columns', label: 'Split Cell', title: 'Split cell', cmd: 'table-split' }),
-    btn(app, { icon: 'table', label: 'Header Row', title: 'Toggle header row', cmd: 'table-header-row' }),
-    btn(app, { icon: 'square', label: 'Borders', title: 'Toggle borders', cmd: 'table-borders', active: () => ed.getAttributes('table').bordered !== false }),
-    colorBtn(app, { icon: 'shading', title: 'Cell shading', cmd: 'shading', initial: '#ffe58f', none: 'No color' }),
-    menuBtn(app, {
-      icon: 'alignCenter',
-      label: 'Table Align',
-      title: 'Table alignment',
-      items: () => [
-        { label: 'Left', run: () => void app.run('table-align', null) },
-        { label: 'Center', run: () => void app.run('table-align', 'center') },
-        { label: 'Right', run: () => void app.run('table-align', 'right') },
+    },
+    {
+      name: 'Text & Symbols',
+      items: [
+        lg('equation', 'Equation', 'insert-equation'),
+        lg('symbol', 'Symbol', undefined, { pop: (ap, el) => charPicker(el, 'symbol', (c) => void ap.run('insert-char', c)) }),
+        lg('emoji', 'Emoji', undefined, { pop: (ap, el) => charPicker(el, 'emoji', (c) => void ap.run('insert-char', c)) }),
+        lg('rule', 'Line', 'insert-hr', { title: 'Horizontal line' }),
+        lg('history', 'Date', 'insert-date', { title: 'Date and time' }),
       ],
-    }),
-    menuBtn(app, {
-      icon: 'alignJustify',
-      label: 'Vertical',
-      title: 'Cell vertical alignment',
-      items: () => [
-        { label: 'Top', run: () => void app.run('cell-valign', null) },
-        { label: 'Center', run: () => void app.run('cell-valign', 'center') },
-        { label: 'Bottom', run: () => void app.run('cell-valign', 'bottom') },
-      ],
-    }),
+    },
   ];
 }
 
-const BUILDERS: Record<TabId, (app: App) => HTMLElement[]> = {
-  home: homeTab,
-  insert: insertTab,
-  layout: layoutTab,
-  references: referencesTab,
-  review: reviewTab,
-  view: viewTab,
-  help: helpTab,
-  table: tableTab,
-};
+function layoutGroups(app: App): Group[] {
+  const para = (ap: App) => ap.editor.getAttributes(ap.editor.isActive('heading') ? 'heading' : 'paragraph');
+  return [
+    {
+      name: 'Page Setup',
+      items: [
+        lg('margins', 'Margins', undefined, {
+          menu: (ap) => [
+            ...Object.entries(MARGIN_PRESETS).map<MenuItem>(([k, m]) => ({ label: `${m.label}  (${(m.t / 72).toFixed(2)}" / ${(m.l / 72).toFixed(2)}")`, run: R(ap, 'page-margins', k) })),
+            { separator: true },
+            { label: 'Custom margins…', run: R(ap, 'page-setup') },
+          ],
+        }),
+        lg('orientation', 'Orientation', undefined, {
+          menu: (ap) => [
+            { label: 'Portrait', checked: ap.meta.page.orientation === 'portrait', run: R(ap, 'page-orientation', 'portrait') },
+            { label: 'Landscape', checked: ap.meta.page.orientation === 'landscape', run: R(ap, 'page-orientation', 'landscape') },
+          ],
+        }),
+        lg('size', 'Size', undefined, {
+          title: 'Paper size',
+          menu: (ap) => [
+            ...Object.entries(PAGE_SIZES).map<MenuItem>(([k, s]) => ({
+              label: s.label,
+              checked: Math.abs(Math.min(ap.meta.page.width, ap.meta.page.height) - s.w) < 1 && Math.abs(Math.max(ap.meta.page.width, ap.meta.page.height) - s.h) < 1,
+              run: R(ap, 'page-size', k),
+            })),
+            { separator: true },
+            { label: 'More paper sizes…', run: R(ap, 'page-setup') },
+          ],
+        }),
+        lg('columns', 'Columns', 'columns'),
+        stack(
+          smL('pageBreak', 'Breaks', undefined, { menu: (ap) => [{ label: 'Page break', icon: 'pageBreak', shortcut: 'Ctrl+Enter', run: R(ap, 'insert-page-break') }] }),
+          smL('hash', 'Line Numbers', 'line-numbers', { title: 'Line numbers' }),
+          smL('file', 'Page Setup', 'page-setup'),
+        ),
+      ],
+    },
+    {
+      name: 'Paragraph',
+      items: [
+        rows(
+          [
+            custom((ap) => spin(ap, { label: 'Indent Left', icon: 'indent', title: 'Indent left (inches)', unit: '"', step: 0.1, get: () => (para(ap).indentLeft ?? 0) / 72, set: (v) => void ap.run('indent-left', v * 72) })),
+            custom((ap) => spin(ap, { label: 'Spacing Before', icon: 'spacing', title: 'Spacing before (pt)', unit: 'pt', step: 1, get: () => para(ap).spaceBefore ?? ap.meta.defaults.spaceBefore, set: (v) => void ap.run('space-before', v) })),
+          ],
+          [
+            custom((ap) => spin(ap, { label: 'Indent Right', icon: 'outdent', title: 'Indent right (inches)', unit: '"', step: 0.1, get: () => (para(ap).indentRight ?? 0) / 72, set: (v) => void ap.run('indent-right', v * 72) })),
+            custom((ap) => spin(ap, { label: 'Spacing After', icon: 'spacing', title: 'Spacing after (pt)', unit: 'pt', step: 1, get: () => para(ap).spaceAfter ?? ap.meta.defaults.spaceAfter, set: (v) => void ap.run('space-after', v) })),
+          ],
+        ),
+      ],
+    },
+    {
+      name: 'Page Background',
+      items: [lg('square', 'Page Borders', 'page-borders', { title: 'Page borders' }), color('palette', 'Page Color', 'page-color', '#ffffff', 'No color', { size: 'lg', label: 'Page Color' })],
+    },
+  ];
+}
+
+function referencesGroups(): Group[] {
+  return [
+    { name: 'Table of Contents', items: [lg('toc', 'Table of Contents', 'insert-toc')] },
+    { name: 'Footnotes', items: [lg('bookmarked', 'Insert Footnote', 'footnote'), lg('file', 'Insert Endnote', 'endnote')] },
+    { name: 'Citations', items: [lg('quote', 'Citations', 'citations')] },
+  ];
+}
+
+function reviewGroups(): Group[] {
+  return [
+    {
+      name: 'Proofing',
+      items: [
+        lg('editor', 'Editor', 'editor-pane'),
+        lg('spelling', 'Spelling & Grammar', 'toggle-spelling', { active: (ap) => ap.editor.view.dom.getAttribute('spellcheck') === 'true' }),
+        lg('hash', 'Word Count', 'word-count'),
+        lg('accessibility', 'Check Accessibility', 'accessibility'),
+      ],
+    },
+    { name: 'Language', items: [lg('translate', 'Translate', 'translate')] },
+    { name: 'Comments', items: [lg('newComment', 'New Comment', 'insert-comment')] },
+    { name: 'Tracking', items: [lg('history', 'Track Changes', 'track-changes')] },
+  ];
+}
+
+function viewGroups(): Group[] {
+  return [
+    {
+      name: 'Views',
+      items: [
+        lg('file', 'Separate Pages', undefined, { title: 'Print layout', active: () => true, run: () => {} }),
+        lg('reading', 'Reading View', 'toggle-reading', { title: 'Reading view', active: (ap) => ap.root.classList.contains('reading') }),
+        lg('reading', 'Immersive Reader', 'immersive-reader'),
+      ],
+    },
+    {
+      name: 'Zoom',
+      items: [
+        lg('zoomIn', 'Zoom', undefined, {
+          menu: (ap) => [
+            ...[50, 75, 90, 100, 125, 150, 200].map<MenuItem>((z) => ({ label: `${z}%`, checked: Math.round(ap.zoom * 100) === z, run: R(ap, 'zoom-set', z / 100) })),
+            { separator: true },
+            { label: 'Fit page width', icon: 'fit', run: R(ap, 'zoom-fit') },
+          ],
+        }),
+        lg('fit', '100%', 'zoom-100', { title: 'Zoom to 100%' }),
+      ],
+    },
+    {
+      name: 'Show',
+      items: [
+        lg('ruler', 'Ruler', 'toggle-ruler', { active: (ap) => ap.ruler.classList.contains('on') }),
+        lg('nav', 'Navigation', 'toggle-nav', { title: 'Navigation pane', active: (ap) => ap.navPane.classList.contains('open') }),
+        lg('header', 'Header & Footer', 'header-footer'),
+      ],
+    },
+    {
+      name: 'Appearance',
+      items: [
+        lg('moon', 'Dark Mode', 'toggle-dark', { title: 'Dark mode', active: (ap) => ap.theme === 'dark' }),
+        lg('palette', 'App Color', undefined, { title: 'App color (plugins)', menu: (ap) => appColorItems(ap) }),
+        lg('sun', 'Switch Background', 'toggle-dark-paper', { title: 'Switch page background', active: (ap) => ap.darkPaper }),
+        lg('panel', 'Ribbon Style', undefined, { menu: (ap) => ribbonStyleItems(ap) }),
+      ],
+    },
+  ];
+}
+
+function helpGroups(): Group[] {
+  return [
+    { name: 'Help', items: [lg('keyboard', 'Keyboard Shortcuts', 'shortcuts'), lg('info', 'About BNC Docs', 'about', { title: 'About' })] },
+    { name: 'Account & Plugins', items: [lg('cloud', 'Nextcloud', 'cloud-settings', { title: 'Nextcloud account' }), lg('layers', 'Plugins', 'plugins', { title: 'Plugins (app colors and icons)' })] },
+  ];
+}
+
+function tableGroups(): Group[] {
+  return [
+    {
+      name: 'Rows & Columns',
+      items: [
+        rows(
+          [smL('plus', 'Row Above', 'table-add-row-above', { title: 'Insert row above', always: true }), smL('plus', 'Row Below', 'table-add-row-below', { title: 'Insert row below', always: true })],
+          [smL('plus', 'Column Left', 'table-add-col-left', { title: 'Insert column left', always: true }), smL('plus', 'Column Right', 'table-add-col-right', { title: 'Insert column right', always: true })],
+        ),
+        stack(smL('minus', 'Delete Row', 'table-delete-row', { always: true }), smL('minus', 'Delete Column', 'table-delete-col', { always: true }), smL('trash', 'Delete Table', 'table-delete', { always: true })),
+      ],
+    },
+    {
+      name: 'Merge',
+      items: [lg('layers', 'Merge Cells', 'table-merge', { title: 'Merge selected cells' }), lg('columns', 'Split Cell', 'table-split'), lg('table', 'Header Row', 'table-header-row', { title: 'Toggle header row' })],
+    },
+    {
+      name: 'Table Style',
+      items: [
+        lg('square', 'Borders', 'table-borders', { title: 'Toggle borders', active: (ap) => ap.editor.getAttributes('table').bordered !== false }),
+        color('shading', 'Cell shading', 'shading', '#ffe58f', 'No color', { size: 'lg', label: 'Shading' }),
+      ],
+    },
+    {
+      name: 'Alignment',
+      items: [
+        lg('alignCenter', 'Table Align', undefined, {
+          title: 'Table alignment',
+          menu: (ap) => [
+            { label: 'Left', run: R(ap, 'table-align', null) },
+            { label: 'Center', run: R(ap, 'table-align', 'center') },
+            { label: 'Right', run: R(ap, 'table-align', 'right') },
+          ],
+        }),
+        lg('alignJustify', 'Vertical', undefined, {
+          title: 'Cell vertical alignment',
+          menu: (ap) => [
+            { label: 'Top', run: R(ap, 'cell-valign', null) },
+            { label: 'Center', run: R(ap, 'cell-valign', 'center') },
+            { label: 'Bottom', run: R(ap, 'cell-valign', 'bottom') },
+          ],
+        }),
+      ],
+    },
+  ];
+}
+
+const TABS: TabDef[] = [
+  { id: 'home', label: 'Home', groups: homeGroups },
+  { id: 'insert', label: 'Insert', groups: insertGroups },
+  { id: 'layout', label: 'Layout', groups: layoutGroups },
+  { id: 'references', label: 'References', groups: referencesGroups },
+  { id: 'review', label: 'Review', groups: reviewGroups },
+  { id: 'view', label: 'View', groups: viewGroups },
+  { id: 'help', label: 'Help', groups: helpGroups },
+  { id: 'table', label: 'Table', contextual: true, groups: tableGroups },
+];
+
+const ribbonStyleItems = (app: App): MenuItem[] => [
+  { label: 'Classic Ribbon', checked: app.ribbonMode === 'classic', run: () => void app.setRibbonMode('classic') },
+  { label: 'Simplified Ribbon', checked: app.ribbonMode === 'simplified', run: () => void app.setRibbonMode('simplified') },
+];
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+function keepFocus(el: HTMLElement) {
+  el.addEventListener('mousedown', (e) => e.preventDefault()); // keep editor focus/selection
+}
+
+function btnEl(app: App, it: BtnItem, simple: boolean): HTMLElement {
+  const big = it.size === 'lg' && !simple;
+  const showLabel = !!it.label && (simple ? it.size === 'lg' || !it.icon || !!it.always : true);
+  const hasMenu = !!(it.menu || it.pop);
+  const content = (): (Node | null)[] => [iconEl(it.icon, big ? 24 : simple ? 18 : 16), showLabel ? h('span', { class: 'lbl', text: it.label }) : null, hasMenu && !it.split ? h('span', { class: 'caret' }, iconEl('chevron', 12)) : null];
+  const open = (el: HTMLElement) => (it.pop ? it.pop(app, el) : it.menu ? showMenu(el, () => it.menu!(app)) : undefined);
+  const title = macify(it.title);
+  const main = h('button', { class: `rb${big ? ' lg' : ' sm'}${it.split ? ' grp-l' : ''}`, title, attrs: { 'aria-label': it.title } }, ...content());
+  keepFocus(main);
+  main.addEventListener('click', () => {
+    if (it.run) it.run(app, main);
+    else if (it.cmd) void app.run(it.cmd, it.arg);
+    else open(main);
+  });
+  if (it.active) {
+    const upd = () => main.classList.toggle('active', !!it.active!(app));
+    app.onRefresh(upd);
+    upd();
+  }
+  if (!it.split) return main;
+  const caret = h('button', { class: `rb caret-btn${big ? ' lg-caret' : ''}`, title: `${it.title} options`, attrs: { 'aria-label': `${it.title} options` } }, iconEl('chevron', 12));
+  keepFocus(caret);
+  caret.addEventListener('click', () => open(caret));
+  return h('span', { class: `split${big ? ' lgs' : ''}` }, main, caret);
+}
+
+function colorEl(app: App, it: ColorItem, simple: boolean): HTMLElement {
+  let last = it.initial;
+  const big = it.size === 'lg' && !simple;
+  const swatch = h('span', { class: 'swatch', style: { background: last } });
+  const showLabel = !!it.label && !simple;
+  const main = h('button', { class: `rb ${big ? 'lg' : 'sm'} grp-l colorbtn`, title: it.title, attrs: { 'aria-label': it.title } }, iconEl(it.icon, big ? 24 : 16), swatch, showLabel ? h('span', { class: 'lbl', text: it.label }) : null);
+  const caret = h('button', { class: `rb caret-btn${big ? ' lg-caret' : ''}`, title: `${it.title} options`, attrs: { 'aria-label': `${it.title} options` } }, iconEl('chevron', 12));
+  keepFocus(main);
+  keepFocus(caret);
+  const apply = (c: string | null) => {
+    if (c) {
+      last = c;
+      swatch.style.background = c;
+    }
+    void app.run(it.cmd, c);
+  };
+  main.addEventListener('click', () => apply(last));
+  caret.addEventListener('click', () => colorPicker(caret, { title: it.title, noneLabel: it.none, onPick: apply, palette: it.palette }));
+  return h('span', { class: `split${big ? ' lgs' : ''}` }, main, caret);
+}
+
+function itemEl(app: App, it: Item, simple: boolean): HTMLElement | null {
+  switch (it.t) {
+    case 'btn': {
+      const el = btnEl(app, it, simple);
+      overflowData.set(el, it);
+      return el;
+    }
+    case 'color': {
+      const el = colorEl(app, it, simple);
+      overflowData.set(el, it);
+      return el;
+    }
+    case 'custom':
+      return it.build(app);
+    case 'stack': {
+      const els = it.items.map((i) => itemEl(app, i, simple)).filter(Boolean) as HTMLElement[];
+      const box = h('div', { class: simple ? 'rinline' : 'rstack' }, ...els);
+      overflowData.set(box, it);
+      return box;
+    }
+    case 'rows': {
+      const rowEls = it.rows.map((r) => h('div', { class: 'rrow' }, ...(r.map((i) => itemEl(app, i, simple)).filter(Boolean) as HTMLElement[])));
+      const box = h('div', { class: simple ? 'rinline' : 'rrows' }, ...(simple ? rowEls.flatMap((r) => [...r.children] as HTMLElement[]) : rowEls));
+      overflowData.set(box, it);
+      return box;
+    }
+  }
+}
+
+function toMenu(app: App, it: Item): MenuItem[] {
+  if (it.t === 'btn') {
+    const label = it.label ?? it.title;
+    if (it.menu) return [{ label, icon: it.icon, sub: it.menu(app) }];
+    if (it.cmd) return [{ label, icon: it.icon, checked: it.active?.(app), run: () => void app.run(it.cmd!, it.arg) }];
+    if (it.run) return [{ label, icon: it.icon, run: () => it.run!(app, document.body) }];
+    return [];
+  }
+  if (it.t === 'color') return [{ label: it.label ?? it.title, icon: it.icon, run: () => void app.run(it.cmd, it.initial) }];
+  if (it.t === 'stack') return it.items.flatMap((i) => toMenu(app, i));
+  if (it.t === 'rows') return it.rows.flat().flatMap((i) => toMenu(app, i));
+  return [];
+}
+
+function firstIcon(items: Item[]): IconName {
+  for (const it of items) {
+    if (it.t === 'btn' || it.t === 'color') return it.icon;
+    if (it.t === 'stack') return firstIcon(it.items);
+    if (it.t === 'rows') return firstIcon(it.rows.flat());
+  }
+  return 'more';
+}
+
+function renderClassic(app: App, groups: Group[]): HTMLElement {
+  const bar = h('div', { class: 'ribbon classic', attrs: { role: 'toolbar', 'aria-label': 'Ribbon' } });
+  const entries = groups.map((g) => {
+    const items = g.items.map((it) => itemEl(app, it, false)).filter(Boolean) as HTMLElement[];
+    const normal = h('div', { class: 'rgroup' }, h('div', { class: 'rgroup-items' }, ...items), h('div', { class: 'rgroup-name', text: g.name }));
+    const btn = h('button', { class: 'rb lg', title: g.name }, iconEl(firstIcon(g.items), 24), h('span', { class: 'lbl', text: g.name }), h('span', { class: 'caret' }, iconEl('chevron', 12)));
+    keepFocus(btn);
+    btn.addEventListener('click', () => {
+      const body = h('div', { class: 'rgroup-pop' }, ...(g.items.map((it) => itemEl(app, it, false)).filter(Boolean) as HTMLElement[]));
+      popover(btn, body);
+      app.refreshUi();
+    });
+    const folded = h('div', { class: 'rgroup collapsed', style: { display: 'none' } }, h('div', { class: 'rgroup-items' }, btn), h('div', { class: 'rgroup-name', text: g.name }));
+    bar.append(normal, folded);
+    return { normal, folded };
+  });
+  // groups that do not fit collapse (last first) into a single button that opens the group as a popup
+  const layout = () => {
+    entries.forEach((e) => {
+      e.normal.style.display = '';
+      e.folded.style.display = 'none';
+    });
+    for (let i = entries.length - 1; i >= 0 && bar.scrollWidth > bar.clientWidth + 1; i--) {
+      entries[i].normal.style.display = 'none';
+      entries[i].folded.style.display = '';
+    }
+  };
+  requestAnimationFrame(layout);
+  new ResizeObserver(layout).observe(bar);
+  return bar;
+}
+
+function renderSimple(app: App, groups: Group[]): HTMLElement {
+  const bar = h('div', { class: 'ribbon simple', attrs: { role: 'toolbar', 'aria-label': 'Ribbon' } });
+  const flow = h('div', { class: 'rflow' });
+  const entries: { el: HTMLElement; it: Item }[] = [];
+  groups.forEach((g, gi) => {
+    if (gi > 0) flow.append(h('div', { class: 'rsep' }));
+    for (const it of g.items) {
+      const el = itemEl(app, it, true);
+      if (!el) continue;
+      flow.append(el);
+      entries.push({ el, it });
+    }
+  });
+  const more = h('button', { class: 'rb more-btn', title: 'More', style: { display: 'none' } }, iconEl('more', 18));
+  keepFocus(more);
+  bar.append(flow, more);
+  const tidySeparators = () => {
+    const kids = [...flow.children] as HTMLElement[];
+    let prevIsSep = true;
+    for (const k of kids) {
+      if (k.classList.contains('rsep')) {
+        k.style.display = prevIsSep ? 'none' : '';
+        if (!prevIsSep) prevIsSep = true;
+      } else if (k.style.display !== 'none') prevIsSep = false;
+    }
+    for (let i = kids.length - 1; i >= 0; i--) {
+      const k = kids[i];
+      if (k.classList.contains('rsep')) k.style.display = 'none';
+      else if (k.style.display !== 'none') break;
+    }
+  };
+  // what does not fit in the row moves into the "…" menu
+  const layout = () => {
+    entries.forEach((e) => (e.el.style.display = ''));
+    flow.querySelectorAll<HTMLElement>('.rsep').forEach((s) => (s.style.display = ''));
+    more.style.display = 'none';
+    const limit = bar.clientWidth - 8;
+    if (flow.scrollWidth <= limit) return;
+    more.style.display = '';
+    const budget = limit - 44;
+    const hidden: Item[] = [];
+    let used = 0;
+    for (const e of entries) {
+      const w = e.el.getBoundingClientRect().width + 2;
+      used += w;
+      if (used > budget) {
+        e.el.style.display = 'none';
+        hidden.push(e.it);
+      }
+    }
+    tidySeparators();
+    more.onclick = () => showMenu(more, () => hidden.flatMap((i) => toMenu(app, i)), { align: 'right' });
+  };
+  requestAnimationFrame(layout);
+  new ResizeObserver(layout).observe(bar);
+  return bar;
+}
 
 // ---------------------------------------------------------------------------
 // File menu
@@ -489,6 +765,7 @@ async function fileMenu(app: App, anchor: HTMLElement) {
     { label: 'Rename', icon: 'rename', run: () => void app.run('rename') },
     { label: 'Nextcloud account', icon: 'cloud', run: () => void app.run('cloud-settings') },
     { label: 'App color', icon: 'palette', sub: appColorItems(app) },
+    { label: 'Ribbon style', icon: 'panel', sub: ribbonStyleItems(app) },
     { label: 'Plugins…', icon: 'layers', run: () => void app.run('plugins') },
     {
       label: 'Info',
@@ -506,44 +783,76 @@ async function fileMenu(app: App, anchor: HTMLElement) {
 // Menubar + ribbon
 // ---------------------------------------------------------------------------
 export function buildMenubar(app: App) {
-  const renderRibbon = () => {
+  const renderBody = () => {
     app.clearRefreshers();
-    const ribbon = h('div', { class: 'ribbon', attrs: { role: 'toolbar', 'aria-label': 'Ribbon' } }, ...BUILDERS[active](app));
-    app.ribbonHost.replaceChildren(ribbon);
+    const tab = TABS.find((t) => t.id === active) ?? TABS[0];
+    const groups = tab.groups(app);
+    const bar = app.ribbonMode === 'simplified' ? renderSimple(app, groups) : renderClassic(app, groups);
+    app.ribbonHost.replaceChildren(bar);
+    app.ribbonHost.classList.toggle('collapsed', app.ribbonCollapsed);
     app.refreshUi();
   };
 
   const renderTabs = () => {
     app.menubar.replaceChildren();
     const inTable = app.editor.isActive('table');
-    const tabs = inTable ? [...TABS, { id: 'table' as const, label: 'Table' }] : TABS;
-    if (!inTable && active === 'table') active = 'home';
-    for (const t of tabs) {
-      const b = h('button', { class: `tab${t.id === active ? ' active' : ''}`, text: t.label, attrs: { 'data-tab': t.id } });
-      b.addEventListener('mousedown', (e) => e.preventDefault());
+    const visible = TABS.filter((t) => !t.contextual || inTable);
+    if (!visible.some((t) => t.id === active)) active = 'home';
+    const mk = (id: string, label: string, ctxual: boolean) => {
+      const b = h('button', { class: `tab${id === active ? ' active' : ''}${ctxual ? ' ctx' : ''}`, text: label, attrs: { 'data-tab': id } });
+      keepFocus(b);
       b.addEventListener('click', () => {
-        if (t.id === 'file') return void fileMenu(app, b);
-        active = t.id as TabId;
+        if (id === 'file') return void fileMenu(app, b);
+        if (app.ribbonCollapsed) app.ribbonCollapsed = false;
+        active = id as TabId;
         renderTabs();
-        renderRibbon();
+        renderBody();
       });
       app.menubar.append(b);
-    }
+    };
+    mk('file', 'File', false);
+    visible.forEach((t) => mk(t.id, t.label, !!t.contextual));
+    const toggle = h('button', { class: 'ribbon-toggle', title: 'Ribbon options' }, iconEl(app.ribbonCollapsed ? 'chevron' : 'up', 14));
+    keepFocus(toggle);
+    toggle.addEventListener('click', () => {
+      showMenu(
+        toggle,
+        [
+          ...ribbonStyleItems(app),
+          { separator: true },
+          {
+            label: app.ribbonCollapsed ? 'Always show ribbon' : 'Hide ribbon',
+            run: () => {
+              app.ribbonCollapsed = !app.ribbonCollapsed;
+              renderTabs();
+              renderBody();
+            },
+          },
+        ],
+        { align: 'right' },
+      );
+    });
+    app.menubar.append(h('div', { class: 'grow' }), toggle);
   };
 
+  // the contextual Table tab appears (and is selected) while the cursor is in a table
   let hadTable = false;
   app.editor.on('selectionUpdate', () => {
     const inTable = app.editor.isActive('table');
     if (inTable !== hadTable) {
       const wasActive = active;
       hadTable = inTable;
-      if (inTable) active = 'table';
+      if (inTable && !app.ribbonCollapsed) active = 'table';
       else if (wasActive === 'table') active = 'home';
       renderTabs();
-      renderRibbon();
+      renderBody();
     }
   });
 
+  app.rebuildRibbon = () => {
+    renderTabs();
+    renderBody();
+  };
   renderTabs();
-  renderRibbon();
+  renderBody();
 }

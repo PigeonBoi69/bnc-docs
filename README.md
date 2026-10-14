@@ -15,7 +15,7 @@ The installers are not code-signed yet, so Windows and macOS show a warning the 
 
 ## Features
 
-- Ribbon with Home / Insert / Layout / References / Review / View / Help tabs (+ a contextual Table tab)
+- Ribbon with Home / Insert / Layout / References / Review / View / Help tabs (+ a contextual Table tab), in two styles you can switch between (File > Ribbon style, or the arrow at the right of the tabs): **Classic** (labelled groups, large buttons) and **Simplified** (one compact row; what does not fit moves into a ... menu)
 - True page view: page size & margins, orientation, page colour, repeating header/footer with `{page}` / `{pages}`,
   paragraphs split across pages with widow/orphan control, page breaks
 - Fonts, sizes, bold/italic/underline/strike, super/subscript, colours, highlight, case, clear formatting
@@ -138,7 +138,7 @@ npm run dev        # Vite + Electron with hot reload
 npm run build      # production build into dist/ and dist-electron/
 npm start          # run the built app
 npm test           # unit tests (docx / bncdoc round-trips)
-npm run dist       # Windows installer into release/
+npm run dist       # Windows installer + portable exe into release/
 npm run icons      # regenerate the app icon
 ```
 

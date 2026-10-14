@@ -18,3 +18,6 @@ Thumbs.db
 *.pem
 *.p12
 *.pfx
+
+# the release notes are source files, not build output
+!docs/releases/

@@ -1,8 +1,8 @@
 # Publishes BNC Docs to GitHub and creates a PRE-RELEASE with the Windows, macOS and Linux downloads.
 #
-#   .\tools\publish-github.ps1 -Owner your-github-name            # first time: creates the repo, pushes, makes release v<version>
+#   .\tools\publish-github.ps1 -Owner your-github-name            # creates the repo if needed, commits + pushes the current code, makes the pre-release v<version>
 #   .\tools\publish-github.ps1 -Owner your-github-name -DryRun    # shows what it would do, changes nothing
-#   .\tools\publish-github.ps1 -Owner your-github-name -ReleaseOnly   # later versions: just (re)create the release for the current version
+#   .\tools\publish-github.ps1 -Owner your-github-name -ReleaseOnly   # only the release (code already pushed)
 #
 # Needs: Git (winget install --id Git.Git -e), GitHub CLI (winget install --id GitHub.cli -e) and "gh auth login" done once.
 param(
@@ -55,7 +55,7 @@ Step "Collecting installers + checksums (version $v)"
 & (Join-Path $PSScriptRoot 'make-release-assets.ps1') | Out-Null
 $assets = Get-ChildItem (Join-Path $root 'release-assets') -File | ForEach-Object FullName
 $assets | ForEach-Object { Write-Host "   $(Split-Path $_ -Leaf)" }
-if ($assets.Count -ne 6) { throw "Expected 5 installers + SHA256SUMS.txt, found $($assets.Count) files." }
+if ($assets.Count -ne 7) { throw "Expected 6 downloads + SHA256SUMS.txt, found $($assets.Count) files." }
 
 if (-not $ReleaseOnly) {
   Step "Filling in your GitHub name ($Owner) and repository URLs"
@@ -92,7 +92,7 @@ if (-not $ReleaseOnly) {
   $hasHead = $false
   if (-not $DryRun) { Quiet { git rev-parse --verify HEAD }; $hasHead = ($LASTEXITCODE -eq 0) }
   if (-not $hasHead) { Run 'git' @('commit', '-m', "BNC Docs $v (pre-release)") }
-  else { git diff --cached --quiet; if ($LASTEXITCODE -ne 0) { Run 'git' @('commit', '-m', "Prepare release $tag") } }
+  else { git diff --cached --quiet; if ($LASTEXITCODE -ne 0) { Run 'git' @('commit', '-m', "BNC Docs $v (pre-release)") } }
 
   Step "Creating $Visibility repository $full on GitHub and pushing"
   if ($DryRun) { Write-Host "   [dry run] gh repo create $full --$Visibility --source . --remote origin --push --description ..." -ForegroundColor DarkGray }

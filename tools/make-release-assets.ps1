@@ -1,4 +1,4 @@
-# Collects the Windows installer, the Linux packages and the macOS zips of the CURRENT version (from package.json) into
+# Collects the Windows installer + portable exe, the Linux packages and the macOS zips of the CURRENT version (from package.json) into
 # release-assets\ with GitHub-friendly names (no spaces), and writes SHA256SUMS.txt next to them.
 #   .\tools\make-release-assets.ps1
 # Build the three platforms first (npm run dist, npm run build:linux, npm run build:mac).
@@ -8,9 +8,13 @@ $v = (Get-Content (Join-Path $root 'package.json') -Raw | ConvertFrom-Json).vers
 $out = Join-Path $root 'release-assets'
 if (Test-Path $out) { Get-ChildItem $out -File | Remove-Item -Force } else { New-Item -ItemType Directory $out | Out-Null }
 
+# the Windows files are in release\ (npm run dist) or release-new\ (when release\ was locked by a running app)
+$winDir = if (Test-Path (Join-Path $root "release\BNC Docs Setup $v.exe")) { 'release' } else { 'release-new' }
+
 # source file (as built) -> name on GitHub
 $map = [ordered]@{
-  "release-v3\BNC Docs Setup $v.exe"                   = "BNC-Docs-Setup-$v-windows-x64.exe"
+  "$winDir\BNC Docs Setup $v.exe"                      = "BNC-Docs-Setup-$v-windows-x64.exe"
+  "$winDir\BNC Docs Portable $v.exe"                   = "BNC-Docs-Portable-$v-windows-x64.exe"
   "release-linux\BNC-Docs-$v-amd64.deb"                = "BNC-Docs-$v-linux-amd64.deb"
   "release-linux\BNC-Docs-$v-x86_64.AppImage"          = "BNC-Docs-$v-linux-x86_64.AppImage"
   "release-mac\BNC-Docs-$v-mac-arm64.zip"              = "BNC-Docs-$v-mac-arm64.zip"

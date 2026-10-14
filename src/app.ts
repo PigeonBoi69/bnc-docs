@@ -34,6 +34,9 @@ export class App {
   zoom = 1;
   theme: 'dark' | 'light' = 'dark';
   autosave = false;
+  ribbonMode: 'classic' | 'simplified' = 'classic';
+  ribbonCollapsed = false;
+  rebuildRibbon: (() => void) | null = null;
   editable = true;
   darkPaper = false;
   painter: any[] | null = null;
@@ -75,6 +78,7 @@ export class App {
     const settings = await window.bnc.getSettings();
     this.theme = settings.theme === 'light' ? 'light' : 'dark';
     this.autosave = !!settings.autosave;
+    this.ribbonMode = settings.ribbon === 'simplified' ? 'simplified' : 'classic';
     this.applyTheme();
 
     document.head.append(h('style', { attrs: { id: 'doc-css' }, text: `${docCss}\n${namedStylesCss()}` }));
@@ -632,6 +636,12 @@ export class App {
     this.applyTheme();
     await window.bnc.setSettings({ theme: t });
     this.refreshUi();
+  }
+
+  async setRibbonMode(mode: 'classic' | 'simplified') {
+    this.ribbonMode = mode;
+    await window.bnc.setSettings({ ribbon: mode });
+    this.rebuildRibbon?.();
   }
 
   async setAutosave(on: boolean) {

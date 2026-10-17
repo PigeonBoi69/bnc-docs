@@ -403,13 +403,18 @@ function reviewGroups(): Group[] {
     {
       name: 'Proofing',
       items: [
-        lg('editor', 'Editor', 'editor-pane'),
-        lg('spelling', 'Spelling & Grammar', 'toggle-spelling', { active: (ap) => ap.editor.view.dom.getAttribute('spellcheck') === 'true' }),
+        lg('editor', 'Editor', 'proof-pane', { title: 'Spelling & punctuation pane (F7)', active: (ap) => ap.proof.pane.isOpen }),
+        lg('spelling', 'Spelling', 'toggle-spelling', { title: 'Check spelling as you type', active: (ap) => ap.proof.spelling }),
+        lg('quote', 'Punctuation', 'toggle-punctuation', { title: 'Check punctuation as you type', active: (ap) => ap.proof.punctuation }),
+        lg('replace', 'AutoCorrect', 'toggle-autocorrect', { title: 'AutoCorrect common typos', active: (ap) => ap.proof.autocorrect }),
         lg('hash', 'Word Count', 'word-count'),
         lg('accessibility', 'Check Accessibility', 'accessibility'),
       ],
     },
-    { name: 'Language', items: [lg('translate', 'Translate', 'translate')] },
+    {
+      name: 'Language',
+      items: [lg('type', 'Language', undefined, { title: 'Proofing language and custom dictionary', menu: (ap) => ap.proof.languageItems() }), lg('translate', 'Translate', 'translate')],
+    },
     { name: 'Comments', items: [lg('newComment', 'New Comment', 'insert-comment')] },
     { name: 'Tracking', items: [lg('history', 'Track Changes', 'track-changes')] },
   ];

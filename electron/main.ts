@@ -148,7 +148,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
-      spellcheck: true,
+      spellcheck: false, // BNC Docs has its own spell checker (src/core/proof): same words and suggestions on every system, offline
     },
   });
   win.once('ready-to-show', () => {
@@ -179,15 +179,9 @@ function createWindow() {
     }
   });
 
-  // Right-click menu with spelling suggestions.
+  // Right-click menu (corrections for underlined words come from the page itself).
   win.webContents.on('context-menu', (_e, params) => {
     const items: MenuItemConstructorOptions[] = [];
-    if (params.misspelledWord) {
-      for (const s of params.dictionarySuggestions.slice(0, 5)) items.push({ label: s, click: () => win?.webContents.replaceMisspelling(s) });
-      if (!params.dictionarySuggestions.length) items.push({ label: 'No suggestions', enabled: false });
-      items.push({ label: 'Add to dictionary', click: () => win?.webContents.session.addWordToSpellCheckerDictionary(params.misspelledWord) });
-      items.push({ type: 'separator' });
-    }
     if (params.isEditable) {
       items.push({ role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'selectAll' });
     } else if (params.selectionText) {
@@ -477,7 +471,6 @@ if (!gotLock) {
     // taskbar button and ignores setIcon(), so the icon could never follow the app style (see taskbar.ts).
     app.setAppUserModelId(taskbar.APP_USER_MODEL_ID);
     pendingOpen = [...pendingOpen, ...docPathsFromArgv(process.argv)]; // keep files macOS handed us before the app was ready
-    session.defaultSession.setSpellCheckerLanguages(['en-US']);
     // Allow listing installed fonts for the font picker.
     session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'local-fonts' || permission === 'clipboard-sanitized-write'));
     session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'local-fonts' || permission === 'clipboard-sanitized-write');

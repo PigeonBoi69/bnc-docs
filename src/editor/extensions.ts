@@ -13,6 +13,7 @@ import { Table, TableRow, TableCell, TableHeader } from '@tiptap/extension-table
 import CharacterCount from '@tiptap/extension-character-count';
 import { FindExtension } from './find';
 import { PaginationExtension, type PaginationOptions } from './paginate';
+import { Proofing, type ProofHost } from './proofing';
 
 declare module '@tiptap/core' {
   interface Commands<ReturnType> {
@@ -272,7 +273,7 @@ const HeaderWithAttrs = TableHeader.extend({
   },
 });
 
-export function buildExtensions(paginationOptions: PaginationOptions) {
+export function buildExtensions(paginationOptions: PaginationOptions, proof?: ProofHost) {
   return [
     StarterKit.configure({
       // StarterKit v3 ships these; configure instead of re-adding.
@@ -304,5 +305,6 @@ export function buildExtensions(paginationOptions: PaginationOptions) {
     PageBreak,
     FindExtension,
     PaginationExtension.configure(paginationOptions),
+    Proofing.configure({ host: proof ?? null }),
   ];
 }

@@ -22,8 +22,17 @@ The installers are not code-signed yet, so Windows and macOS show a warning the 
 - Paragraph formatting: alignment, line spacing, spacing before/after, indents, shading, bulleted & numbered lists (1, a, A, i, I)
 - Styles: Normal, No Spacing, Title, Subtitle, Heading 1-6, Quote, Intense Quote
 - Tables (merge/split, shading, borders, resizing), pictures (paste / drag & drop / resize), links, table of contents, symbols, emoji
-- Find & replace, word count, navigation pane, ruler, zoom, reading view, dark/light theme, spell check (right-click for suggestions)
+- Find & replace, word count, navigation pane, ruler, zoom, reading view, dark/light theme
 - Command search (`Alt+Q`) and the usual shortcuts
+
+## Spelling and punctuation
+
+Wrong words get a red wavy line and punctuation slips a blue one, as you type; right-click for corrections (or press **F7** for a pane that steps through them all).
+
+- **Spelling**: Hunspell dictionaries (the engine and word lists LibreOffice uses) run inside the app, so it works offline and is identical on Windows, macOS and Linux. English (United States / United Kingdom / Australia); the language follows your system until you pick one (status bar, or Review > Language). Ignore Once / Ignore All / Add to Dictionary, and a custom dictionary you can edit.
+- **Punctuation and simple writing checks** (rule based, not a full grammar engine): extra spaces, spaces before commas and full stops, missing spaces after them, doubled punctuation, repeated words (the the), a sentence that starts with a small letter, a lower-case I, a / an, brackets and quotes that never close.
+- **AutoCorrect** fixes about 200 unambiguous typos (teh, recieve, definately, dont ...) and `i` -> `I` when you finish the word; one Ctrl+Z puts the typo back.
+- Review tab: switch spelling, punctuation and AutoCorrect on or off. Web addresses, e-mail addresses, file names, ACRONYMS, words with numbers and text in code style are never flagged.
 
 ## File formats
 

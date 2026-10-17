@@ -1,4 +1,4 @@
-﻿import type { App } from './app';
+import type { App } from './app';
 import { FONT_SIZES } from './ui/pickers';
 import { MARGIN_PRESETS, PAGE_SIZES, STYLE_BY_ID, fontStack } from './core/model';
 import { FORMAT_INFO, type Format } from './core/io';
@@ -61,18 +61,18 @@ export function registerCommands(app: App) {
 
   // ---------------- File ----------------
   add('new', 'New document', () => app.newDocument(), { shortcut: 'Ctrl+N', section: 'File', keywords: 'blank create' });
-  add('open', 'Open fileâ€¦', () => app.openLocal(), { shortcut: 'Ctrl+O', section: 'File', keywords: 'browse docx' });
+  add('open', 'Open file…', () => app.openLocal(), { shortcut: 'Ctrl+O', section: 'File', keywords: 'browse docx' });
   add('save', 'Save', () => app.save(), { shortcut: 'Ctrl+S', section: 'File' });
-  add('save-as', 'Save Asâ€¦', () => app.saveAs(), { shortcut: 'Ctrl+Shift+S', section: 'File', keywords: 'copy' });
-  add('print', 'Printâ€¦', () => app.print(), { shortcut: 'Ctrl+P', section: 'File' });
+  add('save-as', 'Save As…', () => app.saveAs(), { shortcut: 'Ctrl+Shift+S', section: 'File', keywords: 'copy' });
+  add('print', 'Print…', () => app.print(), { shortcut: 'Ctrl+P', section: 'File' });
   for (const fmt of ['pdf', 'docx', 'bncdoc', 'html', 'md', 'txt', 'rtf'] as Format[]) {
     add(`export-${fmt}`, `Export as ${FORMAT_INFO[fmt].label}`, () => app.exportAs(fmt), { section: 'File', keywords: 'download convert save' });
   }
-  add('open-cloud', 'Open from Nextcloudâ€¦', () => app.openCloud(), { section: 'Nextcloud', keywords: 'cloud online' });
-  add('save-cloud', 'Save to Nextcloudâ€¦', () => app.saveCloudAs(), { section: 'Nextcloud', keywords: 'cloud online upload' });
-  add('cloud-settings', 'Nextcloud accountâ€¦', () => void nextcloudDialog(app), { section: 'Nextcloud', keywords: 'sign in connect login' });
+  add('open-cloud', 'Open from Nextcloud…', () => app.openCloud(), { section: 'Nextcloud', keywords: 'cloud online' });
+  add('save-cloud', 'Save to Nextcloud…', () => app.saveCloudAs(), { section: 'Nextcloud', keywords: 'cloud online upload' });
+  add('cloud-settings', 'Nextcloud account…', () => void nextcloudDialog(app), { section: 'Nextcloud', keywords: 'sign in connect login' });
   add('rename', 'Rename document', () => app.rename(), { section: 'File' });
-  add('doc-info', 'Document infoâ€¦', () => docInfoDialog(app), { section: 'File', keywords: 'properties title author' });
+  add('doc-info', 'Document info…', () => docInfoDialog(app), { section: 'File', keywords: 'properties title author' });
   add('autosave-toggle', 'Toggle AutoSave', () => app.setAutosave(!app.autosave), { section: 'File' });
 
   // ---------------- Clipboard / history ----------------
@@ -180,15 +180,15 @@ export function registerCommands(app: App) {
   // ---------------- Insert ----------------
   add('insert-page-break', 'Page break', () => void chain().insertPageBreak().run(), { shortcut: 'Ctrl+Enter', section: 'Insert', keywords: 'new page' });
   add('insert-table', 'Insert table', (o: { rows: number; cols: number }) => void chain().insertTable({ rows: o.rows, cols: o.cols, withHeaderRow: false }).run(), { section: 'Insert' });
-  add('insert-table-dialog', 'Tableâ€¦', () => tableDialog(app), { section: 'Insert' });
-  add('insert-picture', 'Pictureâ€¦', () => {
+  add('insert-table-dialog', 'Table…', () => tableDialog(app), { section: 'Insert' });
+  add('insert-picture', 'Picture…', () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/png,image/jpeg,image/gif,image/bmp,image/webp,image/svg+xml';
     input.onchange = () => input.files?.[0] && void app.insertImageFile(input.files[0]);
     input.click();
   }, { section: 'Insert', keywords: 'image photo' });
-  add('insert-link', 'Linkâ€¦', () => linkDialog(app), { shortcut: 'Ctrl+K', section: 'Insert', keywords: 'hyperlink url' });
+  add('insert-link', 'Link…', () => linkDialog(app), { shortcut: 'Ctrl+K', section: 'Insert', keywords: 'hyperlink url' });
   add('insert-hr', 'Horizontal line', () => void chain().setHorizontalRule().run(), { section: 'Insert' });
   add('insert-date', 'Date and time', () => void chain().insertContent(new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })).run(), { section: 'Insert' });
   add('insert-char', 'Insert character', (ch: string) => void chain().insertContent(ch).run(), { hidden: true });
@@ -210,7 +210,7 @@ export function registerCommands(app: App) {
     ];
     void chain().insertContent(content).run();
   }, { section: 'References', keywords: 'contents toc headings' });
-  add('header-footer', 'Header & Footerâ€¦', () => void headerFooterDialog(app), { section: 'Insert', keywords: 'page number' });
+  add('header-footer', 'Header & Footer…', () => void headerFooterDialog(app), { section: 'Insert', keywords: 'page number' });
   add('insert-page-number', 'Page number', (where: 'header' | 'footer' = 'footer') => {
     const hf = app.meta[where];
     if (!hf.text.includes('{page}')) app.applyMeta({ [where]: { ...hf, text: (hf.text ? hf.text + ' ' : '') + 'Page {page}', align: hf.text ? hf.align : 'center' } } as any);
@@ -239,7 +239,7 @@ export function registerCommands(app: App) {
   add('cell-valign', 'Cell vertical alignment', (a: string | null) => void chain().setCellAttribute('verticalAlign', a).run(), { hidden: true });
 
   // ---------------- Layout ----------------
-  add('page-setup', 'Page Setupâ€¦', () => pageSetupDialog(app), { section: 'Layout', keywords: 'margins size orientation' });
+  add('page-setup', 'Page Setup…', () => pageSetupDialog(app), { section: 'Layout', keywords: 'margins size orientation' });
   add('page-margins', 'Margins', (key: string) => {
     const m = MARGIN_PRESETS[key];
     if (m) app.applyMeta({ page: { ...app.meta.page, marginTop: m.t, marginBottom: m.b, marginLeft: m.l, marginRight: m.r } });
@@ -271,18 +271,18 @@ export function registerCommands(app: App) {
   add('citations', 'Citations', () => comingSoon('Citations'), { section: 'References' });
 
   // ---------------- Review ----------------
-  add('toggle-spelling', 'Spelling & grammar', () => {
-    const dom = ed().view.dom;
-    const on = dom.getAttribute('spellcheck') !== 'true';
-    dom.setAttribute('spellcheck', String(on));
-    toast(on ? 'Spell check on' : 'Spell check off');
-  }, { section: 'Review', keywords: 'proofing' });
+  add('toggle-spelling', 'Check spelling as you type', () => app.proof.toggle('spelling'), { section: 'Review', keywords: 'proofing spell check red underline' });
+  add('toggle-punctuation', 'Check punctuation as you type', () => app.proof.toggle('punctuation'), { section: 'Review', keywords: 'proofing grammar commas full stops' });
+  add('toggle-autocorrect', 'AutoCorrect common typos', () => app.proof.toggle('autocorrect'), { section: 'Review', keywords: 'proofing typo teh' });
+  add('proof-pane', 'Spelling & punctuation pane', () => app.proof.pane.toggle(), { shortcut: 'F7', section: 'Review', keywords: 'proofing editor spell check grammar' });
+  add('proof-language', 'Proofing language', () => app.proof.showLanguageMenu(app.ribbonHost), { section: 'Review', keywords: 'dictionary english australia uk us' });
+  add('custom-dictionary', 'Custom dictionary', () => app.proof.customDictionaryDialog(), { section: 'Review', keywords: 'add word spelling' });
   add('word-count', 'Word count', () => wordCountDialog(app), { section: 'Review', keywords: 'characters pages' });
   add('accessibility', 'Check accessibility', () => comingSoon('The accessibility checker'), { section: 'Review' });
   add('translate', 'Translate', () => comingSoon('Translation'), { section: 'Review' });
   add('track-changes', 'Track changes', () => comingSoon('Track changes'), { section: 'Review' });
   add('dictate', 'Dictate', () => comingSoon('Dictation'), { section: 'Home' });
-  add('editor-pane', 'Editor', () => comingSoon('Editor suggestions'), { section: 'Home' });
+  add('editor-pane', 'Editor', () => app.proof.pane.toggle(), { section: 'Home', keywords: 'spelling punctuation proofing' });
 
   // ---------------- View ----------------
   add('zoom-in', 'Zoom in', () => app.setZoom(app.zoom + 0.1), { section: 'View' });

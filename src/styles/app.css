@@ -284,3 +284,52 @@ input, textarea { user-select: text; }
 /* ---- macOS: the traffic-light buttons sit at the left of the title bar, so nothing is reserved on the right ---- */
 .platform-darwin .titlebar { padding: 0 14px 0 84px; }
 .platform-darwin .doc-title .name { cursor: text; }
+
+/* ---- proofing: underlines, status bar, side pane ---- */
+.proof-spell { text-decoration: underline wavy #e53935; text-decoration-thickness: 1.5px; text-underline-offset: 2px; text-decoration-skip-ink: none; }
+.proof-punct { text-decoration: underline wavy #2f7bf5; text-decoration-thickness: 1.5px; text-underline-offset: 2px; text-decoration-skip-ink: none; }
+.reading .proof-spell, .reading .proof-punct { text-decoration: none; }
+.statusbar .stat.link { cursor: pointer; }
+.statusbar .stat.link:hover { color: var(--text); text-decoration: underline; }
+.proof-stat[data-state='ok'] { color: var(--ok); }
+.proof-stat[data-state='warn'] { color: #ffb454; }
+.proof-stat[data-state='off'] { color: var(--text-dim); }
+.proofpane { width: 310px; flex: none; background: var(--surface); border-left: 1px solid var(--border); display: none; flex-direction: column; min-height: 0; }
+.proofpane.open { display: flex; }
+.reading .proofpane { display: none; }
+.pp-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 6px 14px; }
+.pp-head h3 { margin: 0; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); }
+.pp-body { flex: 1; overflow: auto; padding: 4px 12px 12px; min-height: 0; }
+.pp-counts { color: var(--text-dim); font-size: 12px; margin: 2px 2px 8px; }
+.pp-empty { text-align: center; color: var(--text-dim); padding: 28px 12px; }
+.pp-empty.ok { color: var(--ok); }
+.pp-tick { display: inline-flex; width: 52px; height: 52px; border-radius: 50%; align-items: center; justify-content: center; background: rgba(76, 195, 138, 0.15); margin-bottom: 8px; }
+.pp-card { border: 1px solid var(--border); background: var(--surface-2); border-radius: 10px; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.pp-kind { font-weight: 600; font-size: 12.5px; }
+.pp-context { font-size: 13px; line-height: 1.45; color: var(--text-dim); overflow-wrap: anywhere; }
+.pp-context mark { background: transparent; color: var(--text); font-weight: 600; text-decoration: underline wavy; text-underline-offset: 3px; }
+.pp-context mark.sp { text-decoration-color: #e53935; }
+.pp-context mark.pu { text-decoration-color: #2f7bf5; }
+.pp-sugg { display: flex; flex-direction: column; gap: 2px; }
+.pp-s { text-align: left; border: 0; background: transparent; color: var(--accent-text); padding: 5px 8px; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.pp-s:hover { background: var(--accent-soft); }
+.pp-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-nav { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border); padding-top: 8px; }
+.pp-list { margin-top: 12px; display: flex; flex-direction: column; gap: 1px; }
+.pp-list-title { font-size: 12px; color: var(--text-dim); margin: 0 2px 4px; }
+.pp-row { display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: var(--text); padding: 5px 8px; border-radius: 6px; cursor: pointer; text-align: left; min-width: 0; }
+.pp-row:hover { background: var(--surface-3); }
+.pp-row.sel { background: var(--accent-soft); }
+.pp-row .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; background: #e53935; }
+.pp-row .dot.punct { background: #2f7bf5; }
+.pp-row-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; }
+.pp-row-msg { font-size: 11px; white-space: nowrap; max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
+.pp-options { border-top: 1px solid var(--border); padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.pp-check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; cursor: pointer; }
+.pp-check input { accent-color: var(--accent); }
+.cd-add { display: flex; gap: 8px; margin-bottom: 10px; }
+.cd-add .btn { height: 32px; }
+.cd-list { max-height: 260px; overflow: auto; display: flex; flex-direction: column; gap: 2px; }
+.cd-row { display: flex; align-items: center; justify-content: space-between; padding: 3px 4px 3px 10px; border-radius: 6px; }
+.cd-row:hover { background: var(--surface-3); }
+.cd-empty { padding: 10px 2px; font-size: 12.5px; }

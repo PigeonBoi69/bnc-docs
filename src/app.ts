@@ -9,6 +9,7 @@ import { buildDocumentHtml, pdfTemplate } from './core/print';
 import { debounce, h, iconEl, macify, showMenu, toast, prompt } from './ui/dom';
 import { registerCommands, type Command } from './commands';
 import { buildMenubar } from './ui/ribbon';
+import { Proof } from './ui/proof';
 import { aboutDialog, headerFooterDialog } from './ui/dialogs';
 import { cloudPicker, nextcloudDialog } from './ui/cloud';
 import type { AppStyle, DocFile, StyleState } from './types/bnc';
@@ -58,7 +59,8 @@ export class App {
   titleName!: HTMLElement;
   saveState!: HTMLElement;
   autosaveBtn!: HTMLButtonElement;
-  status!: { page: HTMLElement; words: HTMLElement; zoomRange: HTMLInputElement; zoomLabel: HTMLElement; cloud: HTMLElement };
+  status!: { page: HTMLElement; words: HTMLElement; zoomRange: HTMLInputElement; zoomLabel: HTMLElement; cloud: HTMLElement; proofLang: HTMLElement; proofIssues: HTMLElement };
+  proof!: Proof;
 
   private refreshers: (() => void)[] = [];
   private autosaveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -80,6 +82,7 @@ export class App {
     this.autosave = !!settings.autosave;
     this.ribbonMode = settings.ribbon === 'simplified' ? 'simplified' : 'classic';
     this.applyTheme();
+    this.proof = new Proof(this, settings);
 
     document.head.append(h('style', { attrs: { id: 'doc-css' }, text: `${docCss}\n${namedStylesCss()}` }));
     this.buildShell();
@@ -87,6 +90,8 @@ export class App {
     this.createEditor();
     registerCommands(this);
     buildMenubar(this);
+    this.proof.attachContextMenu();
+    void this.proof.loadSpeller();
     this.applyLayoutVars();
     this.bindGlobalEvents();
     this.setZoom(1);
@@ -153,7 +158,7 @@ export class App {
     this.desk = h('div', { class: 'desk' }, this.paperWrap);
     this.findBar = h('div', { class: 'findbar' });
     const deskWrap = h('div', { class: 'desk-wrap' }, this.ruler, this.desk);
-    const workspace = h('div', { class: 'workspace' }, this.navPane, deskWrap, this.findBar);
+    const workspace = h('div', { class: 'workspace' }, this.navPane, deskWrap, this.proof.pane.el, this.findBar);
 
     const zoomRange = h('input', { attrs: { type: 'range', min: '25', max: '300', step: '5', value: '100', 'aria-label': 'Zoom' } });
     zoomRange.addEventListener('input', () => this.setZoom(Number(zoomRange.value) / 100));
@@ -161,6 +166,10 @@ export class App {
     const pageStat = h('span', { class: 'stat', text: 'Page 1 of 1' });
     const wordStat = h('span', { class: 'stat', text: '0 words' });
     const cloudStat = h('span', { class: 'stat' });
+    const proofLang = h('span', { class: 'stat link', title: 'Proofing language' });
+    proofLang.addEventListener('click', () => this.proof.showLanguageMenu(proofLang));
+    const proofIssues = h('span', { class: 'stat link proof-stat', title: 'Spelling and punctuation (F7)' });
+    proofIssues.addEventListener('click', () => this.proof.pane.toggle());
     pageStat.style.cursor = 'pointer';
     pageStat.addEventListener('click', () => this.run('toggle-nav'));
     wordStat.style.cursor = 'pointer';
@@ -170,7 +179,8 @@ export class App {
       { class: 'statusbar' },
       pageStat,
       wordStat,
-      h('span', { class: 'stat', text: 'English (U.S.)' }),
+      proofLang,
+      proofIssues,
       cloudStat,
       h('div', { class: 'grow' }),
       h('button', { title: 'Reading view', on: { click: () => this.run('toggle-reading') } }, iconEl('reading', 14)),
@@ -184,7 +194,7 @@ export class App {
         h('button', { title: 'Fit page width', on: { click: () => this.fitWidth() } }, iconEl('fit', 14), 'Fit'),
       ),
     );
-    this.status = { page: pageStat, words: wordStat, zoomRange, zoomLabel, cloud: cloudStat };
+    this.status = { page: pageStat, words: wordStat, zoomRange, zoomLabel, cloud: cloudStat, proofLang, proofIssues };
 
     const dropHint = h('div', { class: 'drop-hint', attrs: { id: 'drop-hint' }, text: 'Drop a file to open it or an image to insert it' });
     this.root.append(titlebar, this.menubar, this.ribbonHost, workspace, statusbar, dropHint);
@@ -263,16 +273,19 @@ export class App {
   private createEditor() {
     this.editor = new Editor({
       element: this.paperWrap,
-      extensions: buildExtensions({
-        getLayout: this.getLayout,
-        onChange: (info) => {
-          this.pagination = info;
-          this.updateStatus();
+      extensions: buildExtensions(
+        {
+          getLayout: this.getLayout,
+          onChange: (info) => {
+            this.pagination = info;
+            this.updateStatus();
+          },
         },
-      }),
+        this.proof.host,
+      ),
       content: emptyDoc(),
       editorProps: {
-        attributes: { class: 'doc', spellcheck: 'true', 'aria-label': 'Document' },
+        attributes: { class: 'doc', spellcheck: 'false', 'aria-label': 'Document' },
         handlePaste: (_view, event) => {
           const files = Array.from(event.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'));
           if (!files.length) return false;
@@ -320,6 +333,7 @@ export class App {
     this.editor.storage.pagination?.run();
     this.refreshNav();
     this.refreshUi();
+    this.proof.recheck();
   }
 
   applyLayoutVars() {
@@ -834,7 +848,10 @@ export class App {
       const mod = e.ctrlKey || e.metaKey;
       const k = e.key.toLowerCase();
       // (match the physical key: on a Mac, Option+Q types "œ")
-      if (e.altKey && (k === 'q' || e.code === 'KeyQ')) {
+      if (e.key === 'F7') {
+        e.preventDefault();
+        void this.run('proof-pane');
+      } else if (e.altKey && (k === 'q' || e.code === 'KeyQ')) {
         e.preventDefault();
         document.getElementById('cmd-search')?.focus();
       } else if (mod && !e.shiftKey && !e.altKey) {

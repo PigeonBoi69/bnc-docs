@@ -1,4 +1,4 @@
-﻿// .docx -> BNC Docs document model.
+// .docx -> BNC Docs document model.
 // Reads the WordprocessingML package directly (JSZip + XML) instead of going through HTML so that
 // styles, numbering, tables, images and page setup survive intact.
 import JSZip from 'jszip';
@@ -516,7 +516,7 @@ async function convertRun(r: XNode, ctx: Ctx, baseR: RPr, force: boolean, href: 
           buf += '\t';
           break;
         case 'w:noBreakHyphen':
-          buf += 'â€‘';
+          buf += '\u2011';
           break;
         case 'w:cr':
           flush();
